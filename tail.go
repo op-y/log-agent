@@ -3,6 +3,7 @@ package main
 import (
     "log"
     "os"
+    "time"
 )
 
 type FileAgent struct {
@@ -11,6 +12,7 @@ type FileAgent struct {
     FileInfo     os.FileInfo
     LastOffset   int64
     UnchangeTime int
+    Delimiter    string
     TsEnabled    bool
     TsPattern    string
     CurrentTs    string
@@ -40,10 +42,12 @@ func TailForever(fa *FileAgent, finish <-chan bool) {
         case <-finish:
             break TAIL
         default:
-            log.Printf("tail fil %s", fa.Filename)
+            time.Sleep(1e9)
         }
             
     }
 
+    wg.Done()
+    log.Printf("wg: %v", wg)
     log.Printf("agent for %s exit...", fa.Filename);
 }

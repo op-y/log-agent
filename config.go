@@ -53,21 +53,21 @@ func CheckConfigMD5() []byte {
     return h.Sum(nil)
 }
 
-func LoadConfig() {
+func LoadConfig() *Config {
+    cfg := new(Config)
+
     buf, err := ioutil.ReadFile("config.yaml")
     if err != nil {
         log.Printf("configuration file reading ERROR: %v", err)
-        return
+        return nil
     }
 
-    if err := yaml.Unmarshal(buf, &config); err != nil {
-        log.Fatalf("yaml file unmarshal ERROR: %v", err)
+    if err := yaml.Unmarshal(buf, cfg); err != nil {
+        log.Printf("yaml file unmarshal ERROR: %v", err)
+        return nil
     }
-    log.Printf("Config: %v", config)
+    log.Printf("Config: %v", cfg)
 
-}
-
-func VerifyConfig() bool {
-    return true
+    return cfg
 }
 
