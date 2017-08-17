@@ -1,0 +1,34 @@
+falcon:
+  url: "http://127.0.0.1:1988/v1/push"
+  endpoint: "jenkins-salve.xh.bj.gozap.com"
+logs:
+  - name: "nginx-shopapi"
+    path: "/home/tengine-2.1.2/logs/shopapi.hualala.com.ssl.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):[0-9]{2}"
+    items:
+      - metric: "shopapi.status.200"
+        tags: "module=nginx"
+        counterType: "GAUGE"
+        step: "60"
+        pattern: "status"
+        method: "count"
+      - metric: "shopapi.request.time"
+        tags: "module=nginx"
+        counterType: "GAUGE"
+        step: "60"
+        pattern: ""
+        method: "statistic"
+  - name: "nginx-book"
+    path: "/home/tengine-2.1.2/logs/book.hualala.com.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):[0-9]{2}"
+    items:
+      - metric: "book.status.200"
+        tags: "module=nginx"
+        counterType: "GAUGE"
+        step: "60"
+        pattern: ""
+        method: "count"
