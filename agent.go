@@ -71,10 +71,10 @@ MAIN:
 }
 
 func DispatchAgent() {
-	for _, log := range config.Logs {
+	for _, one := range config.Logs {
 
 		var tasks []*AgentTask
-		for _, item := range log.Items {
+		for _, item := range one.Items {
 			task := new(AgentTask)
 
 			task.Metric = item.Metric
@@ -83,7 +83,9 @@ func DispatchAgent() {
 			task.Step = item.Step
 			task.Pattern = item.Pattern
 			task.Method = item.Method
-			task.CurrentTs = ""
+			task.TsStart = 0
+			task.TsEnd = 0
+			task.TsUpdate = 0
 			task.ValueCnt = 0
 			task.ValueMax = 0
 			task.ValueMin = 0
@@ -94,17 +96,17 @@ func DispatchAgent() {
 		}
 
 		agent := new(FileAgent)
-		agent.Filename = log.Path
+		agent.Filename = one.Path
 		agent.File = nil
 		agent.FileInfo = nil
 		agent.LastOffset = 0
 		agent.UnchangeTime = 0
-		agent.Delimiter = log.Delimiter
-		agent.TsEnabled = log.TsEnabled
-		agent.TsPattern = log.TsPattern
+		agent.Delimiter = one.Delimiter
+		agent.TsEnabled = one.TsEnabled
+		agent.TsPattern = one.TsPattern
 		agent.Tasks = tasks
 
-		name := log.Name
+		name := one.Name
 		ch := make(chan bool, 1)
 
 		record := new(Record)
@@ -131,7 +133,9 @@ func RecallAgent() {
 		close(record.Finish)
 
 		if record.Agent.File != nil {
-			record.Agent.File.Close()
+			if err := record.Agent.File.Close(); err != nil {
+                log.Printf("old file closing ERROR: %v", err)
+            }
 		}
 	}
 

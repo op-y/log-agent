@@ -2,8 +2,8 @@ falcon:
   url: "http://127.0.0.1:1988/v1/push"
   endpoint: "localhost"
 logs:
-  - name: "nginx-log0"
-    path: "/path/to/file1"
+  - name: "file3"
+    path: "/path/to/file3"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):[0-9]{2}"
@@ -20,8 +20,8 @@ logs:
         step: "60"
         pattern: "time"
         method: "statistic"
-  - name: "nginx-log1"
-    path: "/path/to/file2"
+  - name: "file4"
+    path: "/path/to/file4"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):[0-9]{2}"
