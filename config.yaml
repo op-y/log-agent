@@ -3,7 +3,7 @@ falcon:
   endpoint: "localhost"
 logs:
   - name: "file3"
-    path: "/path/to/file3"
+    path: "/home/yezhiqin/gopath/src/log-agent/file3"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):[0-9]{2}"
@@ -21,7 +21,7 @@ logs:
         pattern: "time"
         method: "statistic"
   - name: "file4"
-    path: "/path/to/file4"
+    path: "/home/yezhiqin/gopath/src/log-agent/file4"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):[0-9]{2}"

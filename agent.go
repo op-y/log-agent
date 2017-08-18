@@ -14,10 +14,6 @@ const (
 	CONFIG_CHECK_INTERVAL = 5
 
 	MAX_UNCHANGED_TIME = 5
-
-	POS_START   = 0
-	POS_CURRENT = 1
-	POS_END     = 2
 )
 
 type Record struct {
@@ -145,8 +141,8 @@ func RecallAgent() {
 
 func RecheckConfig() {
 	newMD5Sum := CheckConfigMD5()
-	log.Printf("oldMD5Sum %x ----- newMD5Sum %x", configMD5Sum, newMD5Sum)
 	if !bytes.Equal(configMD5Sum, newMD5Sum) {
+	    log.Printf("oldMD5Sum %x ----- newMD5Sum %x", configMD5Sum, newMD5Sum)
 		cfg := LoadConfig()
 		if cfg == nil {
 			log.Printf("configuration loading error, please check the config.yaml!")
