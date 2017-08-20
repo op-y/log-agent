@@ -130,8 +130,8 @@ func RecallAgent() {
 
 		if record.Agent.File != nil {
 			if err := record.Agent.File.Close(); err != nil {
-                log.Printf("old file closing ERROR: %v", err)
-            }
+				log.Printf("old file closing ERROR: %v", err)
+			}
 		}
 	}
 
@@ -142,7 +142,7 @@ func RecallAgent() {
 func RecheckConfig() {
 	newMD5Sum := CheckConfigMD5()
 	if !bytes.Equal(configMD5Sum, newMD5Sum) {
-	    log.Printf("oldMD5Sum %x ----- newMD5Sum %x", configMD5Sum, newMD5Sum)
+		log.Printf("oldMD5Sum %x ----- newMD5Sum %x", configMD5Sum, newMD5Sum)
 		cfg := LoadConfig()
 		if cfg == nil {
 			log.Printf("configuration loading error, please check the config.yaml!")
