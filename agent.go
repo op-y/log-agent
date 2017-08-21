@@ -90,6 +90,8 @@ func DispatchAgent() {
 			tasks = append(tasks, task)
 		}
 
+        log.Printf("Tasks: %v", tasks)
+
 		agent := new(FileAgent)
 		agent.Filename = one.Path
 		agent.File = nil

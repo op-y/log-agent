@@ -2,33 +2,15 @@ falcon:
   url: "http://127.0.0.1:1988/v1/push"
   endpoint: "localhost"
 logs:
-  - name: "file3"
-    path: "/home/yezhiqin/gopath/src/log-agent/file3"
+  - name: "hualala-be-shop"
+    path: "/home/mule/logs/hualala-be-shop.log"
     delimiter: "\n"
     tsEnabled: true
-    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
     items:
-      - metric: "item1-1"
-        tags: "module=test"
-        counterType: "GAUGE"
-        step: 120
-        pattern: "status"
-        method: "count"
-      - metric: "item1-2"
-        tags: "module=test"
-        counterType: "GAUGE"
-        step: 90
-        pattern: "time"
-        method: "statistic"
-  - name: "file4"
-    path: "/home/yezhiqin/gopath/src/log-agent/file4"
-    delimiter: "\n"
-    tsEnabled: false
-    tsPattern: ""
-    items:
-      - metric: "item2-1"
+      - metric: "resp.data.len"
         tags: "module=test"
         counterType: "GAUGE"
         step: 60
-        pattern: "hello"
-        method: "count"
+        pattern: 'response data lenth \[([0-9]*)\]'
+        method: "statistic"

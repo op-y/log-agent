@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	//"fmt"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -56,8 +56,13 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
         data = append(data, point)
 
         metricMin := task.Metric+".min"
-        point = NewFalconData(metricMin, config.Falcon.Endpoint, task.ValueMin, task.CounterType, task.Tags, task.TsEnd, task.Step)
-        data = append(data, point)
+        if task.ValueCnt > 1<<31 {
+            point = NewFalconData(metricMin, config.Falcon.Endpoint, 0, task.CounterType, task.Tags, task.TsEnd, task.Step)
+            data = append(data, point)
+        } else {
+            point = NewFalconData(metricMin, config.Falcon.Endpoint, task.ValueMin, task.CounterType, task.Tags, task.TsEnd, task.Step)
+            data = append(data, point)
+        }
 
         metricAvg := task.Metric+".avg"
         if task.ValueCnt == 0 {
@@ -75,6 +80,12 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
         log.Printf("push data to falcon ERROR: %v", err)
     }
     log.Printf("push data to falcon succeed: %s", string(response))
+
+    // update value
+    task.ValueCnt = 0
+    task.ValueMax = 0
+    task.ValueMin = 1<<32
+    task.ValueSum = 0
 
     //update timestamp
     if tsEnabled {
@@ -102,18 +113,24 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 
 func (fa *FileAgent) MatchLine(line []byte) {
     if fa.TsEnabled {
+        log.Printf("Timestamp in log is enabled!")
+
         isTsMatched, ts, err := MatchTs(line, fa.TsPattern)
         if err != nil || ! isTsMatched {
+            log.Printf("Timestamp NOT matched!")
             return
         }
+        log.Printf("Timestamp is: %v", ts.Unix())
             
 	    for _, task := range fa.Tasks {
             //push data and update task when the time between this line and start timestamp is longer than a step
 			if ts.Unix() > task.TsEnd || ts.Unix() < task.TsStart {
+                log.Printf("Timestamp updated!")
                 task.Update(ts, true)
 			}
 
             if task.Method == "count" {
+                log.Printf("Task count!")
                 isKeywordMatched, err := MatchKeyword(line, task.Pattern)
                 if err != nil || ! isKeywordMatched {
                     return
@@ -123,10 +140,15 @@ func (fa *FileAgent) MatchLine(line []byte) {
             }
 
             if task.Method == "statistic" {
+                log.Printf("Task statistic: %s", task.Pattern)
+
                 isCostMatched, cost, err := MatchCost(line, task.Pattern)
                 if err != nil || ! isCostMatched {
+                    log.Printf("Cost NOT matched!")
                     return
                 }
+                log.Printf("Bravo: %f !", cost)
+
                 task.ValueCnt += 1
                 if task.ValueMax < cost {
                     task.ValueMax = cost
@@ -137,6 +159,8 @@ func (fa *FileAgent) MatchLine(line []byte) {
                 task.ValueSum += cost
                 task.TsUpdate = ts.Unix()
             }
+
+            log.Printf("Task: %v", task)
         }
     } else {
 	    for _, task := range fa.Tasks {
@@ -281,7 +305,7 @@ func (fa *FileAgent) Recheck() error {
 			task.TsUpdate = tsNow
 			task.ValueCnt = 0
 			task.ValueMax = 0
-			task.ValueMin = 0
+			task.ValueMin = 1<<32
 			task.ValueSum = 0
 
 			log.Printf("TS: %d %d %d", task.TsStart, task.TsEnd, task.TsUpdate)
@@ -319,14 +343,14 @@ func (fa *FileAgent) ReadRemainder() {
 	log.Printf("file %s, size: %d --- offset: %d", fa.Filename, fa.FileInfo.Size(), fa.LastOffset)
 
 	bufsize := size - fa.LastOffset
-	log.Printf("buffer size: %d", bufsize)
+	//log.Printf("buffer size: %d", bufsize)
 	if bufsize == 0 {
 		log.Printf("file %s changed, but its size is not changed", fa.Filename)
 		return
 	}
 	data := make([]byte, bufsize)
 	readsize, err := fa.File.Read(data)
-	log.Printf("real read size: %d", readsize)
+	//log.Printf("real read size: %d", readsize)
 
 	if err != nil && err != io.EOF {
 		log.Printf("file %s read ERROR: %v", err)
@@ -336,14 +360,6 @@ func (fa *FileAgent) ReadRemainder() {
 		log.Printf("file %s read 0 data", fa.Filename)
 		return
 	}
-
-	//log.Printf("=======DATA========")
-	//fmt.Printf("%s", string(data))
-	//log.Printf("===================")
-
-	//fa.LastOffset += int64(readsize)
-	//log.Printf("file %s, size: %d --- offset: %d", fa.Filename, fa.FileInfo.Size(), fa.LastOffset)
-	//return
 
     if fa.Delimiter == "" {
         fa.Delimiter = "\n"
@@ -368,7 +384,7 @@ func (fa *FileAgent) ReadRemainder() {
 			break
 		}
 
-		//fmt.Printf("line %d: %s", idx, string(line))
+		fmt.Printf("line %d: %s", idx, string(line))
         fa.MatchLine(line) 
 	}
 	return
