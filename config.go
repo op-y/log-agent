@@ -67,5 +67,54 @@ func LoadConfig() *Config {
 	}
 	log.Printf("Config: %v", cfg)
 
+    // check configuration
+    if cfg.Falcon.Url == "" {
+        log.Printf("URL of Falcon agent API should not EMPTY!")
+        return nil
+    }
+
+    var metrics []string
+    for _, one := range cfg.Logs {
+        if one.Name == "" {
+            log.Printf("Name of log should not EMPTY!")
+            return nil
+        }
+        if one.Path == "" {
+            log.Printf("Path of log should not EMPTY!")
+            return nil
+        }
+
+        for _, item := range one.Items {
+            if item.Metric == "" {
+                log.Printf("Metric of item should not EMPTY!")
+                return nil
+            }
+
+            for _, metric := range metrics {
+                if item.Metric == metric {
+                    log.Printf("Metirc of item should not DUPLICATE!")
+                    return nil
+                }
+            }
+            metrics = append(metrics, item.Metric)
+
+            if item.CounterType != "GAUGE" && item.CounterType != "COUNTER" {
+                log.Printf("CouterType of item should be 'GAUGE' or 'COUNTER'")
+                return nil
+            }
+
+            if item.Pattern == "" {
+                log.Printf("Pattern of item should not EMPTY!")
+                return nil
+            }
+
+            if item.Method != "count" && item.Method != "statistic" {
+                log.Printf("Method of item should be 'count' or 'statistic'")
+                return nil
+            }
+        }
+    }
+    
+
 	return cfg
 }

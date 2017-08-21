@@ -4,19 +4,20 @@ import (
     "log"
     "regexp"
     "strconv"
+    "time"
 )
 
-func MatchTs(line []byte, pattern string) (bool, string, error) {
+func MatchTs(line []byte, pattern string) (bool, time.Time, error) {
     re, err := regexp.Compile(pattern)
     if err != nil {
         log.Printf("re compiling ERROR: %v", err)
-        return false, "", err
+        return false, time.Now(), err
     }
 
     matches := re.FindSubmatch(line)
 
     if matches == nil {
-        return false, "", nil
+        return false, time.Now(), nil
     }
 
     year   := string(matches[1])
@@ -24,8 +25,13 @@ func MatchTs(line []byte, pattern string) (bool, string, error) {
     day    := string(matches[3])
     hour   := string(matches[4])
     minute := string(matches[5])
+    second := string(matches[6])
     
-    ts := year+month+day+hour+minute
+    tsString := year+month+day+hour+minute+second
+	ts, err := time.ParseInLocation("20060102150405", tsString, time.Now().Location())
+	if err != nil {
+		log.Printf("timestamp setting ERROR: %v", err)
+	}
 
     return  true, ts, nil
 }

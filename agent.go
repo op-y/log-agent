@@ -84,8 +84,7 @@ func DispatchAgent() {
 			task.TsUpdate = 0
 			task.ValueCnt = 0
 			task.ValueMax = 0
-			task.ValueMin = 0
-			task.ValueAvg = 0
+			task.ValueMin = 1<<32
 			task.ValueSum = 0
 
 			tasks = append(tasks, task)
@@ -127,12 +126,6 @@ func RecallAgent() {
 		record.Finish <- true
 
 		close(record.Finish)
-
-		if record.Agent.File != nil {
-			if err := record.Agent.File.Close(); err != nil {
-				log.Printf("old file closing ERROR: %v", err)
-			}
-		}
 	}
 
 	records = []*Record{}
