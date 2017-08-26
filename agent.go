@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"log"
-	"os"
+	"runtime/pprof"
+    "os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+    "flag"
 )
 
 const (
@@ -27,7 +29,20 @@ var configMD5Sum []byte
 var records []*Record
 var wg sync.WaitGroup
 
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+
 func main() {
+    flag.Parse()
+
+    if *cpuprofile != "" {
+        f, err := os.Create(*cpuprofile)
+        if err != nil {
+            log.Fatal(err)
+        }
+        pprof.StartCPUProfile(f)
+        defer pprof.StopCPUProfile()
+    }
+
 	sysCh := make(chan os.Signal, 1)
 	signal.Notify(sysCh, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	defer close(sysCh)

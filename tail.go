@@ -37,58 +37,60 @@ type AgentTask struct {
 	ValueSum    float64
 }
 
+var RET = 0
+
 func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
-    var data []*FalconData
+	var data []*FalconData
 
-    if task.Method == "count" {
-        metricCnt := task.Metric+".cnt"
-        point := NewFalconData(metricCnt, config.Falcon.Endpoint, task.ValueCnt, task.CounterType, task.Tags, task.TsEnd, task.Step)
-        data = append(data, point)
-    }
+	if task.Method == "count" {
+		metricCnt := task.Metric + ".cnt"
+		point := NewFalconData(metricCnt, config.Falcon.Endpoint, task.ValueCnt, task.CounterType, task.Tags, task.TsEnd, task.Step)
+		data = append(data, point)
+	}
 
-    if task.Method == "statistic" {
-        metricCnt := task.Metric+".cnt"
-        point := NewFalconData(metricCnt, config.Falcon.Endpoint, task.ValueCnt, task.CounterType, task.Tags, task.TsEnd, task.Step)
-        data = append(data, point)
+	if task.Method == "statistic" {
+		metricCnt := task.Metric + ".cnt"
+		point := NewFalconData(metricCnt, config.Falcon.Endpoint, task.ValueCnt, task.CounterType, task.Tags, task.TsEnd, task.Step)
+		data = append(data, point)
 
-        metricMax := task.Metric+".max"
-        point = NewFalconData(metricMax, config.Falcon.Endpoint, task.ValueMax, task.CounterType, task.Tags, task.TsEnd, task.Step)
-        data = append(data, point)
+		metricMax := task.Metric + ".max"
+		point = NewFalconData(metricMax, config.Falcon.Endpoint, task.ValueMax, task.CounterType, task.Tags, task.TsEnd, task.Step)
+		data = append(data, point)
 
-        metricMin := task.Metric+".min"
-        if task.ValueCnt > 1<<31 {
-            point = NewFalconData(metricMin, config.Falcon.Endpoint, 0, task.CounterType, task.Tags, task.TsEnd, task.Step)
-            data = append(data, point)
-        } else {
-            point = NewFalconData(metricMin, config.Falcon.Endpoint, task.ValueMin, task.CounterType, task.Tags, task.TsEnd, task.Step)
-            data = append(data, point)
-        }
+		metricMin := task.Metric + ".min"
+		if task.ValueMin > task.ValueMax {
+			point = NewFalconData(metricMin, config.Falcon.Endpoint, 0, task.CounterType, task.Tags, task.TsEnd, task.Step)
+			data = append(data, point)
+		} else {
+			point = NewFalconData(metricMin, config.Falcon.Endpoint, task.ValueMin, task.CounterType, task.Tags, task.TsEnd, task.Step)
+			data = append(data, point)
+		}
 
-        metricAvg := task.Metric+".avg"
-        if task.ValueCnt == 0 {
-            point = NewFalconData(metricAvg, config.Falcon.Endpoint, 0, task.CounterType, task.Tags, task.TsEnd, task.Step)
-            data = append(data, point)
-        } else {
-            point = NewFalconData(metricAvg, config.Falcon.Endpoint, task.ValueSum/float64(task.ValueCnt), task.CounterType, task.Tags, task.TsEnd, task.Step)
-            data = append(data, point)
-        }
-    }
+		metricAvg := task.Metric + ".avg"
+		if task.ValueCnt == 0 {
+			point = NewFalconData(metricAvg, config.Falcon.Endpoint, 0, task.CounterType, task.Tags, task.TsEnd, task.Step)
+			data = append(data, point)
+		} else {
+			point = NewFalconData(metricAvg, config.Falcon.Endpoint, task.ValueSum/float64(task.ValueCnt), task.CounterType, task.Tags, task.TsEnd, task.Step)
+			data = append(data, point)
+		}
+	}
 
-    log.Printf("falcon point: %v", data)
-    response, err := PushData(config.Falcon.Url, data)
-    if err != nil {
-        log.Printf("push data to falcon ERROR: %v", err)
-    }
-    log.Printf("push data to falcon succeed: %s", string(response))
+	log.Printf("falcon point: %v", data)
+	response, err := PushData(config.Falcon.Url, data)
+	if err != nil {
+		log.Printf("push data to falcon ERROR: %v", err)
+	}
+	log.Printf("push data to falcon succeed: %s", string(response))
 
-    // update value
-    task.ValueCnt = 0
-    task.ValueMax = 0
-    task.ValueMin = 1<<32
-    task.ValueSum = 0
+	// update value
+	task.ValueCnt = 0
+	task.ValueMax = 0
+	task.ValueMin = 1 << 32
+	task.ValueSum = 0
 
-    //update timestamp
-    if tsEnabled {
+	//update timestamp
+	if tsEnabled {
 		minute := ts.Format("200601021504")
 		start, err := time.ParseInLocation("20060102150405", minute+"00", ts.Location())
 		if err != nil {
@@ -101,93 +103,91 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 			log.Printf("timestamp setting ERROR: %v", err)
 		}
 		tsEnd := end.Unix()
-        task.TsStart = tsStart
-        task.TsEnd = tsEnd
-        task.TsUpdate = ts.Unix()
-    } else {
-        task.TsStart += task.Step
-        task.TsEnd += task.Step
-        task.TsUpdate = ts.Unix()
-    }
+		task.TsStart = tsStart
+		task.TsEnd = tsEnd
+		task.TsUpdate = ts.Unix()
+	} else {
+		task.TsStart += task.Step
+		task.TsEnd += task.Step
+		task.TsUpdate = ts.Unix()
+	}
 }
 
 func (fa *FileAgent) MatchLine(line []byte) {
-    if fa.TsEnabled {
-        log.Printf("Timestamp in log is enabled!")
+	if fa.TsEnabled {
 
-        isTsMatched, ts, err := MatchTs(line, fa.TsPattern)
-        if err != nil || ! isTsMatched {
-            log.Printf("Timestamp NOT matched!")
-            return
-        }
-        log.Printf("Timestamp is: %v", ts.Unix())
-            
-	    for _, task := range fa.Tasks {
-            //push data and update task when the time between this line and start timestamp is longer than a step
+		isTsMatched, ts, err := MatchTs(line, fa.TsPattern)
+		if err != nil || !isTsMatched {
+			log.Printf("Timestamp NOT matched!")
+			return
+		}
+
+		for _, task := range fa.Tasks {
+			//push data and update task when the time between this line and start timestamp is longer than a step
 			if ts.Unix() > task.TsEnd || ts.Unix() < task.TsStart {
-                log.Printf("Timestamp updated!")
-                task.Update(ts, true)
+				log.Printf("Timestamp updated!")
+				task.Update(ts, true)
 			}
 
-            if task.Method == "count" {
-                log.Printf("Task count!")
-                isKeywordMatched, err := MatchKeyword(line, task.Pattern)
-                if err != nil || ! isKeywordMatched {
-                    return
-                }
-                task.ValueCnt += 1
-                task.TsUpdate = ts.Unix()
-            }
+			if task.Method == "count" {
+				log.Printf("Task count!")
+				isKeywordMatched, err := MatchKeyword(line, task.Pattern)
+				if err != nil || !isKeywordMatched {
+					return
+				}
+				task.ValueCnt += 1
+				task.TsUpdate = ts.Unix()
+			}
 
-            if task.Method == "statistic" {
-                log.Printf("Task statistic: %s", task.Pattern)
+			if task.Method == "statistic" {
+				log.Printf("Task statistic: %s", task.Pattern)
 
-                isCostMatched, cost, err := MatchCost(line, task.Pattern)
-                if err != nil || ! isCostMatched {
-                    log.Printf("Cost NOT matched!")
-                    return
-                }
-                log.Printf("Bravo: %f !", cost)
+				isCostMatched, cost, err := MatchCost(line, task.Pattern)
+				if err != nil || !isCostMatched {
+					log.Printf("Cost NOT matched!")
+					return
+				}
+				log.Printf("Bravo: %f !", cost)
 
-                task.ValueCnt += 1
-                if task.ValueMax < cost {
-                    task.ValueMax = cost
-                }
-                if task.ValueMin > cost {
-                    task.ValueMin = cost
-                }
-                task.ValueSum += cost
-                task.TsUpdate = ts.Unix()
-            }
+				task.ValueCnt += 1
+				if task.ValueMax < cost {
+					task.ValueMax = cost
+				}
+				if task.ValueMin > cost {
+					task.ValueMin = cost
+				}
+				task.ValueSum += cost
+				task.TsUpdate = ts.Unix()
+			}
 
-            log.Printf("Task: %v", task)
-        }
-    } else {
-	    for _, task := range fa.Tasks {
-            if task.Method == "count" {
-                isKeywordMatched, err := MatchKeyword(line, task.Pattern)
-                if err != nil || ! isKeywordMatched {
-                    return
-                }
-                task.ValueCnt += 1
-            }
-            
-            if task.Method == "statistic" {
-                isCostMatched, cost, err := MatchCost(line, task.Pattern)
-                if err != nil || ! isCostMatched {
-                    return
-                }
-                task.ValueCnt += 1
-                if task.ValueMax < cost {
-                    task.ValueMax = cost
-                }
-                if task.ValueMin > cost {
-                    task.ValueMin = cost
-                }
-                task.ValueSum += cost
-            }
-        }
-    }
+			log.Printf("Task: %v", task)
+		}
+	} else {
+		for _, task := range fa.Tasks {
+			if task.Method == "count" {
+				isKeywordMatched, err := MatchKeyword(line, task.Pattern)
+				if err != nil || !isKeywordMatched {
+					return
+				}
+				task.ValueCnt += 1
+			}
+
+			if task.Method == "statistic" {
+				isCostMatched, cost, err := MatchCost(line, task.Pattern)
+				if err != nil || !isCostMatched {
+					return
+				}
+				task.ValueCnt += 1
+				if task.ValueMax < cost {
+					task.ValueMax = cost
+				}
+				if task.ValueMin > cost {
+					task.ValueMin = cost
+				}
+				task.ValueSum += cost
+			}
+		}
+	}
 }
 
 func (fa *FileAgent) Timeup() {
@@ -196,13 +196,13 @@ func (fa *FileAgent) Timeup() {
 	for _, task := range fa.Tasks {
 		if fa.TsEnabled {
 			if ts.Unix()-task.TsUpdate >= task.Step {
-                //push data and update task when the time between now and last update timestamp is longer than a step
-                task.Update(ts, true)
+				//push data and update task when the time between now and last update timestamp is longer than a step
+				task.Update(ts, true)
 			}
 		} else {
 			if ts.Unix()-task.TsStart >= task.Step {
-                //push data and update task when the time between now and start timestamp is longer than a step
-                task.Update(ts, false)
+				//push data and update task when the time between now and start timestamp is longer than a step
+				task.Update(ts, false)
 			}
 		}
 	}
@@ -305,7 +305,7 @@ func (fa *FileAgent) Recheck() error {
 			task.TsUpdate = tsNow
 			task.ValueCnt = 0
 			task.ValueMax = 0
-			task.ValueMin = 1<<32
+			task.ValueMin = 1 << 32
 			task.ValueSum = 0
 
 			log.Printf("TS: %d %d %d", task.TsStart, task.TsEnd, task.TsUpdate)
@@ -313,13 +313,13 @@ func (fa *FileAgent) Recheck() error {
 
 		return nil
 	} else {
-		//log.Printf("recheck file, but it not changed")
 		fa.UnchangeTime = 0
 		return nil
 	}
 }
 
-func (fa *FileAgent) ReadRemainder() {
+func (fa *FileAgent) ReadRemainder() int {
+	ret := 0
 	tailable := fa.FileInfo.Mode().IsRegular()
 	size := fa.FileInfo.Size()
 
@@ -336,34 +336,28 @@ func (fa *FileAgent) ReadRemainder() {
 		fa.LastOffset = 0
 		log.Printf("file %s, size: %d --- offset: %d", fa.Filename, fa.FileInfo.Size(), fa.LastOffset)
 
-		return
+		return ret
 	}
 
-	// read data
-	log.Printf("file %s, size: %d --- offset: %d", fa.Filename, fa.FileInfo.Size(), fa.LastOffset)
-
 	bufsize := size - fa.LastOffset
-	//log.Printf("buffer size: %d", bufsize)
 	if bufsize == 0 {
-		log.Printf("file %s changed, but its size is not changed", fa.Filename)
-		return
+		return ret
 	}
 	data := make([]byte, bufsize)
 	readsize, err := fa.File.Read(data)
-	//log.Printf("real read size: %d", readsize)
 
 	if err != nil && err != io.EOF {
 		log.Printf("file %s read ERROR: %v", err)
-		return
+		return ret
 	}
 	if readsize == 0 {
 		log.Printf("file %s read 0 data", fa.Filename)
-		return
+		return ret
 	}
 
-    if fa.Delimiter == "" {
-        fa.Delimiter = "\n"
-    }
+	if fa.Delimiter == "" {
+		fa.Delimiter = "\n"
+	}
 	sep := []byte(fa.Delimiter)
 	lines := bytes.SplitAfter(data, sep)
 	length := len(lines)
@@ -385,9 +379,10 @@ func (fa *FileAgent) ReadRemainder() {
 		}
 
 		fmt.Printf("line %d: %s", idx, string(line))
-        fa.MatchLine(line) 
+		fa.MatchLine(line)
+		ret = 1
 	}
-	return
+	return ret
 }
 
 func TryReading(fa *FileAgent) {
@@ -399,16 +394,17 @@ func TryReading(fa *FileAgent) {
 		return
 	}
 
-	if !fa.isChanged() {
-		//log.Printf("file %s is not changed", fa.Filename)
-		if fa.UnchangeTime >= MAX_UNCHANGED_TIME {
-			fa.Recheck()
+	if RET == 0 {
+		if !fa.isChanged() {
+			//log.Printf("file %s is not changed", fa.Filename)
+			if fa.UnchangeTime >= MAX_UNCHANGED_TIME {
+				fa.Recheck()
+			}
+			return
 		}
-		return
 	}
 
-	//log.Printf("file %s is trying to read", fa.Filename)
-	fa.ReadRemainder()
+	RET = fa.ReadRemainder()
 }
 
 func TailForever(fa *FileAgent, finish <-chan bool) {
@@ -421,16 +417,17 @@ TAIL:
 	for {
 		select {
 		case <-finish:
-            if fa.File != nil {
-			    if err := fa.File.Close(); err != nil {
-			    	log.Printf("file closing ERROR: %v", err)
-			    }
-            }
+			if fa.File != nil {
+				if err := fa.File.Close(); err != nil {
+					log.Printf("file closing ERROR: %v", err)
+				}
+			}
 			break TAIL
 		case <-ticker.C:
 			fa.Timeup()
 		default:
-			TryReading(fa)
+    		TryReading(fa)
+            time.Sleep(time.Millisecond * 50)
 		}
 	}
 

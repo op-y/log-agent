@@ -73,7 +73,6 @@ func LoadConfig() *Config {
         return nil
     }
 
-    var metrics []string
     for _, one := range cfg.Logs {
         if one.Name == "" {
             log.Printf("Name of log should not EMPTY!")
@@ -89,14 +88,6 @@ func LoadConfig() *Config {
                 log.Printf("Metric of item should not EMPTY!")
                 return nil
             }
-
-            for _, metric := range metrics {
-                if item.Metric == metric {
-                    log.Printf("Metirc of item should not DUPLICATE!")
-                    return nil
-                }
-            }
-            metrics = append(metrics, item.Metric)
 
             if item.CounterType != "GAUGE" && item.CounterType != "COUNTER" {
                 log.Printf("CouterType of item should be 'GAUGE' or 'COUNTER'")
