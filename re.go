@@ -1,3 +1,17 @@
+/*
+* re.go - functions related to regular expression matching
+*
+* history
+* --------------------
+* 2017/8/18, by Ye Zhiqin, create
+*
+* DESCRIPTION
+* This file contains three functions related to regular expression matching
+* MatchTs - match and extract timestamp in log
+* MatchKeyword - match the keyword in log
+* MatchCost - match and extract cost value in log
+*/
+
 package main
 
 import (
@@ -7,6 +21,18 @@ import (
     "time"
 )
 
+/*
+* MatchTs - match and extract timestamp in log
+*
+* PARAMS:
+*   - line: one line of log
+*   - pattern: regular expression
+*
+* RETURNS:
+*   - true, timestamp, nil: if match
+*   - false, timestamp, nil: if not match
+*   - false, timestamp, error: if fail
+*/
 func MatchTs(line []byte, pattern string) (bool, time.Time, error) {
     re, err := regexp.Compile(pattern)
     if err != nil {
@@ -36,6 +62,18 @@ func MatchTs(line []byte, pattern string) (bool, time.Time, error) {
     return  true, ts, nil
 }
 
+/*
+* MatchKeyword - match the keyword in log
+*
+* PARAMS:
+*   - line: one line of log
+*   - pattern: regular expression
+*
+* RETURNS:
+*   - true, nil: if match
+*   - false, nil: if not match
+*   - false, error: if fail
+*/
 func MatchKeyword(line []byte, pattern string) (bool, error) {
     re, err := regexp.Compile(pattern)
     if err != nil {
@@ -47,6 +85,18 @@ func MatchKeyword(line []byte, pattern string) (bool, error) {
     return isMatch, nil
 }
 
+/*
+* MatchCost - match and extract cost value in log
+*
+* PARAMS:
+*   - line: one line of log
+*   - pattern: regular expression
+*
+* RETURNS:
+*   - true, value, nil: if match
+*   - false, 0, nil: if not match
+*   - false, 0, error: if fail
+*/
 func MatchCost(line []byte, pattern string) (bool, float64, error) {
     re, err := regexp.Compile(pattern)
     if err != nil {

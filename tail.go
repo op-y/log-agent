@@ -1,3 +1,15 @@
+/*
+* tail.go - file agent data structure and funtions to tail file
+*
+* history
+* --------------------
+* 2017/8/18, by Ye Zhiqin, create
+*
+* DESCRIPTION
+* This file contains the definition of file agent
+* and the functions to tail log file
+*/
+
 package main
 
 import (
@@ -10,15 +22,15 @@ import (
 )
 
 type FileAgent struct {
-	Filename     string
-	File         *os.File
-	FileInfo     os.FileInfo
-	LastOffset   int64
-	UnchangeTime int
-	Delimiter    string
-	TsEnabled    bool
-	TsPattern    string
-	Tasks        []*AgentTask
+	Filename      string
+	File          *os.File
+	FileInfo      os.FileInfo
+	LastOffset    int64
+	UnchangeTime  int
+	Delimiter     string
+	TsEnabled     bool
+	TsPattern     string
+	Tasks         []*AgentTask
 }
 
 type AgentTask struct {
@@ -37,8 +49,18 @@ type AgentTask struct {
 	ValueSum    float64
 }
 
-var RET = 0
-
+/*
+* Update - push and update data after a period passed
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   - ts: timestamp
+*   - tsEnabled: is log file timestamp enabled
+*
+* RETURNS:
+*   No paramter
+*/
 func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 	var data []*FalconData
 
@@ -113,6 +135,17 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 	}
 }
 
+/*
+* MatchLine - process each line of log
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   - line: a line of log file
+*
+* RETURNS:
+*   No paramter
+*/
 func (fa *FileAgent) MatchLine(line []byte) {
 	if fa.TsEnabled {
 
@@ -190,6 +223,17 @@ func (fa *FileAgent) MatchLine(line []byte) {
 	}
 }
 
+/*
+* Timeup - the process after a period passed
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   No paramter
+*/
 func (fa *FileAgent) Timeup() {
 	ts := time.Now()
 
@@ -208,7 +252,19 @@ func (fa *FileAgent) Timeup() {
 	}
 }
 
-func (fa *FileAgent) isChanged() bool {
+/*
+* IsChanged - check the change of log file
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   - true: if change
+*   - false: if not change
+*/
+func (fa *FileAgent) IsChanged() bool {
 	lastMode := fa.FileInfo.Mode()
 	lastSize := fa.FileInfo.Size()
 	lastModTime := fa.FileInfo.ModTime().Unix()
@@ -239,6 +295,17 @@ func (fa *FileAgent) isChanged() bool {
 	return true
 }
 
+/*
+* Recheck - recheck the file of file agent
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   No return value
+*/
 func (fa *FileAgent) Recheck() error {
 	filename := fa.Filename
 
@@ -318,8 +385,18 @@ func (fa *FileAgent) Recheck() error {
 	}
 }
 
-func (fa *FileAgent) ReadRemainder() int {
-	ret := 0
+/*
+* ReadRemainder - reading new bytes of log file
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   No return value
+*/
+func (fa *FileAgent) ReadRemainder() {
 	tailable := fa.FileInfo.Mode().IsRegular()
 	size := fa.FileInfo.Size()
 
@@ -336,23 +413,23 @@ func (fa *FileAgent) ReadRemainder() int {
 		fa.LastOffset = 0
 		log.Printf("file %s, size: %d --- offset: %d", fa.Filename, fa.FileInfo.Size(), fa.LastOffset)
 
-		return ret
+		return
 	}
 
 	bufsize := size - fa.LastOffset
 	if bufsize == 0 {
-		return ret
+		return
 	}
 	data := make([]byte, bufsize)
 	readsize, err := fa.File.Read(data)
 
 	if err != nil && err != io.EOF {
 		log.Printf("file %s read ERROR: %v", err)
-		return ret
+		return
 	}
 	if readsize == 0 {
 		log.Printf("file %s read 0 data", fa.Filename)
-		return ret
+		return
 	}
 
 	if fa.Delimiter == "" {
@@ -380,11 +457,19 @@ func (fa *FileAgent) ReadRemainder() int {
 
 		fmt.Printf("line %d: %s", idx, string(line))
 		fa.MatchLine(line)
-		ret = 1
 	}
-	return ret
+	return
 }
 
+/*
+* TryReading - reading log file
+*
+* PARAMS:
+*   - fa: file agent
+*
+* RETURNS:
+*   No return value
+*/
 func TryReading(fa *FileAgent) {
 	if fa.File == nil {
 		log.Printf("file %s is nil", fa.Filename)
@@ -394,19 +479,27 @@ func TryReading(fa *FileAgent) {
 		return
 	}
 
-	if RET == 0 {
-		if !fa.isChanged() {
-			//log.Printf("file %s is not changed", fa.Filename)
-			if fa.UnchangeTime >= MAX_UNCHANGED_TIME {
-				fa.Recheck()
-			}
-			return
+	if !fa.IsChanged() {
+		//log.Printf("file %s is not changed", fa.Filename)
+		if fa.UnchangeTime >= MAX_UNCHANGED_TIME {
+			fa.Recheck()
 		}
+		return
 	}
 
-	RET = fa.ReadRemainder()
+	fa.ReadRemainder()
 }
 
+/*
+* TailForever - tail log file in a loop
+*
+* PARAMS:
+*   - fa: file agent
+*   - finish: a channel to receiver stop signal
+*
+* RETURNS:
+*   No return value
+*/
 func TailForever(fa *FileAgent, finish <-chan bool) {
 	log.Printf("agent for %s launch...", fa.Filename)
 
@@ -427,7 +520,7 @@ TAIL:
 			fa.Timeup()
 		default:
     		TryReading(fa)
-            time.Sleep(time.Millisecond * 50)
+            time.Sleep(time.Millisecond * 100)
 		}
 	}
 

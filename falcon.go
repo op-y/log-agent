@@ -1,3 +1,15 @@
+/*
+* falcon.go - the data structure of open falcon and related functions
+*
+* history
+* --------------------
+* 2017/8/18, by Ye Zhiqin, create
+*
+* DESCRIPTION
+* This file contains the definition of open falcon data structure
+* and the function to push data to open falcon
+*/
+
 package main
 
 import (
@@ -21,16 +33,52 @@ type FalconData struct {
     Step        int64       `json:"step"`
 }
 
+/*
+* SetValue - set FalconData value
+*
+* RECEIVER: *FalconData
+*
+* PARAMS:
+*   - v: value
+*
+* RETURNS:
+*   No return value
+*/
 func (data *FalconData) SetValue(v interface{}) {
     data.Value = v
 }
 
+/*
+* String - generate a new FalconData
+*
+* RECEIVER: *FalconData
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   - string: string to display
+*/
 func (data *FalconData) String() string {
     s := fmt.Sprintf("FalconData Metric:%s Endpoint:%s Value:%v CounterType:%s Tags:%s Timestamp:%d Step:%d",
     data.Metric, data.Endpoint, data.Value, data.CounterType, data.Tags, data.Timestamp, data.Step)
     return s
 }
 
+/*
+* NewFalconData - generate a new FalconData
+*
+* PARAMS:
+*   - metric
+*   - endpoint
+*   - value
+*   - counterType
+*   - timestamp
+*   - step
+*
+* RETURNS:
+*   - *FalconData
+*/
 func NewFalconData(metric string, endpoint string, value interface{}, counterType string, tags string, timestamp int64, step int64) *FalconData {
     point := &FalconData{
         Metric:      metric,
@@ -44,6 +92,17 @@ func NewFalconData(metric string, endpoint string, value interface{}, counterTyp
     return point
 }
 
+/*
+* GetEndpoint - generate endpoint value
+*
+* PARAMS:
+*   - endpoint
+*
+* RETURNS:
+*   - endpoint: if endpoint is avaliable
+*   - hostname: if endpoint is empty
+*   - localhost: if endpoint is empty and can't get hostname
+*/
 func GetEndpoint(endpoint string) string {
     if endpoint != "" {
         return endpoint
@@ -56,6 +115,16 @@ func GetEndpoint(endpoint string) string {
     return hostname
 }
 
+/*
+* GetTimestamp - generate timestamp value
+*
+* PARAMS:
+*   - timestamp
+*
+* RETURNS:
+*   - timestamp: if timestamp > 0
+*   - now: if timestamp <= 0
+*/
 func GetTimestamp(timestamp int64) int64 {
     if timestamp > 0 {
         return timestamp
@@ -64,6 +133,17 @@ func GetTimestamp(timestamp int64) int64 {
     }
 }
 
+/*
+* PushData - push data to open falcon
+*
+* PARAMS:
+*   - api: url of agent or transfer
+*   - data: an array of FalconData
+*
+* RETURNS:
+*   - []byte, nil: if succeed
+*   - nil, error: if fail
+*/
 func PushData(api string, data []*FalconData) ([]byte, error) {
     points, err := json.Marshal(data)
     if err != nil {

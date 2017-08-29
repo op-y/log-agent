@@ -1,7 +1,20 @@
+/*
+* agent.go - the entry of program
+*
+* history
+* --------------------
+* 2017/8/18, by Ye Zhiqin, create
+*
+* DESCRIPTION
+* This file contains the main scheduler of the program
+* and the global variable to keep file agent information
+*/
+
 package main
 
 import (
 	"bytes"
+    "flag"
 	"log"
 	"runtime/pprof"
     "os"
@@ -9,12 +22,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
-    "flag"
 )
 
 const (
-	CONFIG_CHECK_INTERVAL = 5
-
 	MAX_UNCHANGED_TIME = 5
 )
 
@@ -24,13 +34,11 @@ type Record struct {
 	Finish chan bool
 }
 
-var config *Config
-var configMD5Sum []byte
 var records []*Record
 var wg sync.WaitGroup
-
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
+// main
 func main() {
     flag.Parse()
 
@@ -81,6 +89,15 @@ MAIN:
 	log.Printf("log-agent exit...")
 }
 
+/*
+* DispatchAgent - generate the file agent by the configuration
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS: 
+*   No return value
+*/
 func DispatchAgent() {
 	for _, one := range config.Logs {
 
@@ -136,6 +153,15 @@ func DispatchAgent() {
 	}
 }
 
+/*
+* RecallAgent - recall the file agent when program stop or configuration changed
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS: 
+*   No return value
+*/
 func RecallAgent() {
 	log.Printf("Before recall, length of records: %d", len(records))
 
@@ -149,6 +175,15 @@ func RecallAgent() {
 	log.Printf("After recall, length of records: %d", len(records))
 }
 
+/*
+* RecheckConfig - check md5sum and reload the configuration file
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   No return value
+*/
 func RecheckConfig() {
 	newMD5Sum := CheckConfigMD5()
 	if !bytes.Equal(configMD5Sum, newMD5Sum) {

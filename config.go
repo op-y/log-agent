@@ -1,3 +1,16 @@
+/*
+* config.go - the structure of configuration and related functions
+*
+* history
+* --------------------
+* 2017/8/18, by Ye Zhiqin, create
+*
+* DESCRIPTION
+* This file contains the definition of configuration data structure
+* and the functions to load configuration file and check md5sum of
+* the configuration file
+*/
+
 package main
 
 import (
@@ -8,6 +21,10 @@ import (
 	"os"
 
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	CONFIG_CHECK_INTERVAL = 5
 )
 
 type Config struct {
@@ -38,6 +55,18 @@ type ItemConfig struct {
 	Method      string `yaml:"method"`
 }
 
+var config *Config
+var configMD5Sum []byte
+
+/*
+* CheckConfigMD5 - calculate the md5sum of configuration file
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   []byte, the md5sum of configuration file
+*/
 func CheckConfigMD5() []byte {
 	f, err := os.Open("config.yaml")
 	if err != nil {
@@ -52,6 +81,16 @@ func CheckConfigMD5() []byte {
 	return h.Sum(nil)
 }
 
+/*
+* LoadConfig - load configuration file to Config struct
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   nil, if error ocurred
+*   *Config, if succeed
+*/
 func LoadConfig() *Config {
 	cfg := new(Config)
 
@@ -106,6 +145,5 @@ func LoadConfig() *Config {
         }
     }
     
-
 	return cfg
 }
