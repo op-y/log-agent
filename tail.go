@@ -8,13 +8,12 @@
 * DESCRIPTION
 * This file contains the definition of file agent
 * and the functions to tail log file
-*/
+ */
 
 package main
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -22,15 +21,15 @@ import (
 )
 
 type FileAgent struct {
-	Filename      string
-	File          *os.File
-	FileInfo      os.FileInfo
-	LastOffset    int64
-	UnchangeTime  int
-	Delimiter     string
-	TsEnabled     bool
-	TsPattern     string
-	Tasks         []*AgentTask
+	Filename     string
+	File         *os.File
+	FileInfo     os.FileInfo
+	LastOffset   int64
+	UnchangeTime int
+	Delimiter    string
+	TsEnabled    bool
+	TsPattern    string
+	Tasks        []*AgentTask
 }
 
 type AgentTask struct {
@@ -60,7 +59,7 @@ type AgentTask struct {
 *
 * RETURNS:
 *   No paramter
-*/
+ */
 func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 	var data []*FalconData
 
@@ -101,7 +100,7 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 	log.Printf("falcon point: %v", data)
 	response, err := PushData(config.Falcon.Url, data)
 	if err != nil {
-		log.Printf("push data to falcon ERROR: %v", err)
+		log.Printf("push data to falcon FAIL: %v", err)
 	}
 	log.Printf("push data to falcon succeed: %s", string(response))
 
@@ -116,13 +115,13 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 		minute := ts.Format("200601021504")
 		start, err := time.ParseInLocation("20060102150405", minute+"00", ts.Location())
 		if err != nil {
-			log.Printf("timestamp setting ERROR: %v", err)
+			log.Printf("timestamp setting FAIL: %v", err)
 		}
 		tsStart := start.Unix()
 
 		end, err := time.ParseInLocation("20060102150405", minute+"59", ts.Location())
 		if err != nil {
-			log.Printf("timestamp setting ERROR: %v", err)
+			log.Printf("timestamp setting FAIL: %v", err)
 		}
 		tsEnd := end.Unix()
 		task.TsStart = tsStart
@@ -145,25 +144,22 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 *
 * RETURNS:
 *   No paramter
-*/
+ */
 func (fa *FileAgent) MatchLine(line []byte) {
 	if fa.TsEnabled {
-
 		isTsMatched, ts, err := MatchTs(line, fa.TsPattern)
 		if err != nil || !isTsMatched {
-			log.Printf("Timestamp NOT matched!")
 			return
 		}
 
 		for _, task := range fa.Tasks {
-			//push data and update task when the time between this line and start timestamp is longer than a step
+			//push data and update task when the timestamp is not in current period
 			if ts.Unix() > task.TsEnd || ts.Unix() < task.TsStart {
-				log.Printf("Timestamp updated!")
+				log.Printf("timestamp updated!")
 				task.Update(ts, true)
 			}
 
 			if task.Method == "count" {
-				log.Printf("Task count!")
 				isKeywordMatched, err := MatchKeyword(line, task.Pattern)
 				if err != nil || !isKeywordMatched {
 					return
@@ -173,14 +169,10 @@ func (fa *FileAgent) MatchLine(line []byte) {
 			}
 
 			if task.Method == "statistic" {
-				log.Printf("Task statistic: %s", task.Pattern)
-
 				isCostMatched, cost, err := MatchCost(line, task.Pattern)
 				if err != nil || !isCostMatched {
-					log.Printf("Cost NOT matched!")
 					return
 				}
-				log.Printf("Bravo: %f !", cost)
 
 				task.ValueCnt += 1
 				if task.ValueMax < cost {
@@ -192,8 +184,6 @@ func (fa *FileAgent) MatchLine(line []byte) {
 				task.ValueSum += cost
 				task.TsUpdate = ts.Unix()
 			}
-
-			log.Printf("Task: %v", task)
 		}
 	} else {
 		for _, task := range fa.Tasks {
@@ -233,19 +223,19 @@ func (fa *FileAgent) MatchLine(line []byte) {
 *
 * RETURNS:
 *   No paramter
-*/
+ */
 func (fa *FileAgent) Timeup() {
 	ts := time.Now()
 
 	for _, task := range fa.Tasks {
 		if fa.TsEnabled {
 			if ts.Unix()-task.TsUpdate >= task.Step {
-				//push data and update task when the time between now and last update timestamp is longer than a step
+				//push data and update task when the time between now and last update time is longer than a step
 				task.Update(ts, true)
 			}
 		} else {
 			if ts.Unix()-task.TsStart >= task.Step {
-				//push data and update task when the time between now and start timestamp is longer than a step
+				//push data and update task when the time between now and start time is longer than a step
 				task.Update(ts, false)
 			}
 		}
@@ -263,7 +253,7 @@ func (fa *FileAgent) Timeup() {
 * RETURNS:
 *   - true: if change
 *   - false: if not change
-*/
+ */
 func (fa *FileAgent) IsChanged() bool {
 	lastMode := fa.FileInfo.Mode()
 	lastSize := fa.FileInfo.Size()
@@ -271,7 +261,7 @@ func (fa *FileAgent) IsChanged() bool {
 
 	fileinfo, err := fa.File.Stat()
 	if err != nil {
-		log.Printf("file %s stat ERROR: %v", err)
+		log.Printf("file %s stat FAIL: %v", err)
 		fa.UnchangeTime += 1
 		return false
 	}
@@ -289,14 +279,14 @@ func (fa *FileAgent) IsChanged() bool {
 		return false
 	}
 
-	log.Printf("file %s is changed", fa.Filename)
+	// replace the FileInfo for reading the new content
 	fa.UnchangeTime = 0
 	fa.FileInfo = fileinfo
 	return true
 }
 
 /*
-* Recheck - recheck the file of file agent
+* Recheck - recheck the file for file agent
 *
 * RECEIVER: *FileAgent
 *
@@ -305,20 +295,20 @@ func (fa *FileAgent) IsChanged() bool {
 *
 * RETURNS:
 *   No return value
-*/
+ */
 func (fa *FileAgent) Recheck() error {
 	filename := fa.Filename
 
 	file, err := os.Open(filename)
 	if err != nil {
-		log.Printf("file %s opening ERROR: %v", fa.Filename, err)
+		log.Printf("file %s opening FAIL: %v", fa.Filename, err)
 		fa.UnchangeTime = 0
 		return err
 	}
 
 	fileinfo, err := file.Stat()
 	if err != nil {
-		log.Printf("file %s stat ERROR: %v", fa.Filename, err)
+		log.Printf("file %s stat FAIL: %v", fa.Filename, err)
 		fa.UnchangeTime = 0
 		return err
 	}
@@ -328,7 +318,7 @@ func (fa *FileAgent) Recheck() error {
 		log.Printf("file %s recheck, it is a new file", fa.Filename)
 		if fa.File != nil {
 			if err := fa.File.Close(); err != nil {
-				log.Printf("old file closing ERROR: %v", err)
+				log.Printf("old file closing FAIL: %v", err)
 			}
 		}
 
@@ -337,13 +327,13 @@ func (fa *FileAgent) Recheck() error {
 		fa.LastOffset = 0
 		fa.UnchangeTime = 0
 
+		// seek the cursor to the end of new file
 		offset, err := fa.File.Seek(fa.FileInfo.Size(), os.SEEK_SET)
-		log.Printf("File(seek) %s offset %d", fa.Filename, offset)
 		if err != nil {
-			log.Printf("file seeking ERROR: %v", err)
+			log.Printf("seek file %s FAIL: %v", fa.Filename, err)
 		}
+		log.Printf("seek file %s to %d", fa.Filename, offset)
 		fa.LastOffset += fa.FileInfo.Size()
-		log.Printf("file %s, size: %d --- offset: %d", fa.Filename, fa.FileInfo.Size(), fa.LastOffset)
 
 		now := time.Now()
 		minute := now.Format("200601021504")
@@ -354,14 +344,14 @@ func (fa *FileAgent) Recheck() error {
 
 		start, err := time.ParseInLocation("20060102150405", minute+"00", now.Location())
 		if err != nil {
-			log.Printf("timestamp setting ERROR: %v", err)
+			log.Printf("timestamp setting FAIL: %v", err)
 		} else {
 			tsStart = start.Unix()
 		}
 
 		end, err := time.ParseInLocation("20060102150405", minute+"59", now.Location())
 		if err != nil {
-			log.Printf("timestamp setting ERROR: %v", err)
+			log.Printf("timestamp setting FAIL: %v", err)
 		} else {
 			tsEnd = end.Unix()
 		}
@@ -374,8 +364,6 @@ func (fa *FileAgent) Recheck() error {
 			task.ValueMax = 0
 			task.ValueMin = 1 << 32
 			task.ValueSum = 0
-
-			log.Printf("TS: %d %d %d", task.TsStart, task.TsEnd, task.TsUpdate)
 		}
 
 		return nil
@@ -395,23 +383,22 @@ func (fa *FileAgent) Recheck() error {
 *
 * RETURNS:
 *   No return value
-*/
+ */
 func (fa *FileAgent) ReadRemainder() {
 	tailable := fa.FileInfo.Mode().IsRegular()
 	size := fa.FileInfo.Size()
 
+	// LastOffset less then new size. Maybe the file has been truncated.
 	if tailable && fa.LastOffset > size {
-		log.Printf("file %s be truncated", fa.Filename)
+		// seek the cursor to the header of new file
 		offset, err := fa.File.Seek(0, os.SEEK_SET)
-		log.Printf("File(seek) %s offset %d", fa.Filename, offset)
 		if err != nil {
-			log.Printf("file %s seek ERROR: %v", fa.Filename, err)
+			log.Printf("file %s seek FAIL: %v", fa.Filename, err)
 		}
 		if offset != 0 {
 			log.Printf("offset is not equal 0")
 		}
 		fa.LastOffset = 0
-		log.Printf("file %s, size: %d --- offset: %d", fa.Filename, fa.FileInfo.Size(), fa.LastOffset)
 
 		return
 	}
@@ -424,7 +411,7 @@ func (fa *FileAgent) ReadRemainder() {
 	readsize, err := fa.File.Read(data)
 
 	if err != nil && err != io.EOF {
-		log.Printf("file %s read ERROR: %v", err)
+		log.Printf("file %s read FAIL: %v", err)
 		return
 	}
 	if readsize == 0 {
@@ -440,22 +427,20 @@ func (fa *FileAgent) ReadRemainder() {
 	length := len(lines)
 
 	for idx, line := range lines {
+		// just process entire line with the delimiter
 		if idx == length-1 {
 			backsize := len(line)
 			movesize := readsize - backsize
-			log.Printf("backsize: %d, movesize: %d", backsize, movesize)
 
 			offset, err := fa.File.Seek(-int64(backsize), os.SEEK_CUR)
 			if err != nil {
-				log.Printf("file %s seek ERROR: %v", fa.Filename, err)
+				log.Printf("seek file %s FAIL: %v", fa.Filename, err)
 			}
-			log.Printf("File(seek) %s offset %d", fa.Filename, offset)
 			fa.LastOffset += int64(movesize)
-			log.Printf("file %s, size: %d --- offset: %d", fa.Filename, fa.FileInfo.Size(), fa.LastOffset)
+
 			break
 		}
 
-		fmt.Printf("line %d: %s", idx, string(line))
 		fa.MatchLine(line)
 	}
 	return
@@ -469,18 +454,17 @@ func (fa *FileAgent) ReadRemainder() {
 *
 * RETURNS:
 *   No return value
-*/
+ */
 func TryReading(fa *FileAgent) {
 	if fa.File == nil {
 		log.Printf("file %s is nil", fa.Filename)
 		if err := fa.Recheck(); err != nil {
-			log.Printf("file recheck ERROR: %v", err)
+			log.Printf("file recheck FAIL: %v", err)
 		}
 		return
 	}
 
 	if !fa.IsChanged() {
-		//log.Printf("file %s is not changed", fa.Filename)
 		if fa.UnchangeTime >= MAX_UNCHANGED_TIME {
 			fa.Recheck()
 		}
@@ -499,11 +483,11 @@ func TryReading(fa *FileAgent) {
 *
 * RETURNS:
 *   No return value
-*/
+ */
 func TailForever(fa *FileAgent, finish <-chan bool) {
-	log.Printf("agent for %s launch...", fa.Filename)
+	log.Printf("agent for %s is launching...", fa.Filename)
 
-	ticker := time.NewTicker(1e9)
+	ticker := time.NewTicker(time.Second * 1)
 	defer ticker.Stop()
 
 TAIL:
@@ -512,19 +496,19 @@ TAIL:
 		case <-finish:
 			if fa.File != nil {
 				if err := fa.File.Close(); err != nil {
-					log.Printf("file closing ERROR: %v", err)
+					log.Printf("file closing FAIL: %v", err)
 				}
 			}
 			break TAIL
 		case <-ticker.C:
 			fa.Timeup()
 		default:
-    		TryReading(fa)
-            time.Sleep(time.Millisecond * 100)
+			TryReading(fa)
+			time.Sleep(time.Millisecond * 100)
 		}
 	}
 
 	wg.Done()
 	log.Printf("wg: %v", wg)
-	log.Printf("agent for %s exit...", fa.Filename)
+	log.Printf("agent for %s is exiting...", fa.Filename)
 }

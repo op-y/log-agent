@@ -1,4 +1,4 @@
-# log-agent (debugging)
+# log-agent
 log-agent 跟踪普通可读文件，正则匹配给定的pattern，将匹配结果当做监控数据推送到open falcon系统中
 
 ## 文件说明:

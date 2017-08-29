@@ -2,15 +2,45 @@ falcon:
   url: "http://127.0.0.1:1988/v1/push"
   endpoint: "localhost"
 logs:
-  - name: "log-test"
-    path: "/path/to/test.log"
+  - name: "test-1"
+    path: "/home/mule-standalone-3.5.0/logs/hualala-be-pos.log"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
     items:
       - metric: "response.data.lenght"
-        tags: "module=nginx,app=op"
+        tags: "module=mule,app=op"
         counterType: "GAUGE"
         step: 60
-        pattern: 'response data length \[([0-9]*)\]'
+        pattern: 'response data lenth \[([0-9]*)\]'
+        method: "statistic"
+      - metric: "hualala-be-pos"
+        tags: "module=mule,app=op"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'hualala-be-pos'
+        method: 'count'
+  - name: "test-2"
+    path: "/home/mule-standalone-3.5.0/logs/mule.log"
+    delimiter: "\n"
+    tsEnabled: false
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "exception"
+        tags: "module=mule,app=op"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'Exception'
+        method: 'count'
+  - name: "test-3"
+    path: "/home/mule-standalone-3.5.0/logs/hualala-be-pay.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.lenght"
+        tags: "module=mule,app=op-pay"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\]'
         method: "statistic"
