@@ -3,7 +3,7 @@ falcon:
   endpoint: "localhost"
 logs:
   - name: "test-1"
-    path: "/home/mule-standalone-3.5.0/logs/hualala-be-pos.log"
+    path: "/home/mule/logs/test.log"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
@@ -14,14 +14,14 @@ logs:
         step: 60
         pattern: 'response data lenth \[([0-9]*)\]'
         method: "statistic"
-      - metric: "hualala-be-pos"
+      - metric: "be-pos"
         tags: "module=mule,app=op"
         counterType: "GAUGE"
         step: 60
-        pattern: 'hualala-be-pos'
+        pattern: 'be-pos'
         method: 'count'
   - name: "test-2"
-    path: "/home/mule-standalone-3.5.0/logs/mule.log"
+    path: "/home/mule/logs/test2.log"
     delimiter: "\n"
     tsEnabled: false
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
@@ -33,7 +33,7 @@ logs:
         pattern: 'Exception'
         method: 'count'
   - name: "test-3"
-    path: "/home/mule-standalone-3.5.0/logs/hualala-be-pay.log"
+    path: "/home/mule/logs/test3.log"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
