@@ -432,7 +432,7 @@ func (fa *FileAgent) ReadRemainder() {
 			backsize := len(line)
 			movesize := readsize - backsize
 
-			offset, err := fa.File.Seek(-int64(backsize), os.SEEK_CUR)
+			_, err := fa.File.Seek(-int64(backsize), os.SEEK_CUR)
 			if err != nil {
 				log.Printf("seek file %s FAIL: %v", fa.Filename, err)
 			}

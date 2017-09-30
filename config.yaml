@@ -1,46 +1,148 @@
 falcon:
   url: "http://127.0.0.1:1988/v1/push"
-  endpoint: "localhost"
+  endpoint: "outmule3.sj.hualala.com"
 logs:
-  - name: "test-1"
-    path: "/home/mule-standalone-3.5.0/logs/hualala-be-pos.log"
+  - name: "hualala-be-css"
+    path: "/home/mule/logs/hualala-be-css.log"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
     items:
-      - metric: "response.data.lenght"
-        tags: "module=mule,app=op"
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-css"
         counterType: "GAUGE"
         step: 60
-        pattern: 'response data lenth \[([0-9]*)\]'
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
         method: "statistic"
-      - metric: "hualala-be-pos"
-        tags: "module=mule,app=op"
-        counterType: "GAUGE"
-        step: 60
-        pattern: 'hualala-be-pos'
-        method: 'count'
-  - name: "test-2"
-    path: "/home/mule-standalone-3.5.0/logs/mule.log"
-    delimiter: "\n"
-    tsEnabled: false
-    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
-    items:
-      - metric: "exception"
-        tags: "module=mule,app=op"
-        counterType: "GAUGE"
-        step: 60
-        pattern: 'Exception'
-        method: 'count'
-  - name: "test-3"
-    path: "/home/mule-standalone-3.5.0/logs/hualala-be-pay.log"
+  - name: "hualala-be-event"
+    path: "/home/mule/logs/hualala-be-event.log"
     delimiter: "\n"
     tsEnabled: true
     tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
     items:
-      - metric: "response.data.lenght"
-        tags: "module=mule,app=op-pay"
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-event"
         counterType: "GAUGE"
         step: 60
-        pattern: 'response data lenth \[([0-9]*)\]'
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-be-log"
+    path: "/home/mule/logs/hualala-be-log.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-log"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-be-order"
+    path: "/home/mule/logs/hualala-be-order.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-order"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-be-pay"
+    path: "/home/mule/logs/hualala-be-pay.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-pay"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-be-pos"
+    path: "/home/mule/logs/hualala-be-pos.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-pos"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-be-shop"
+    path: "/home/mule/logs/hualala-be-shop.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-shop"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-be-sysbase"
+    path: "/home/mule/logs/hualala-be-sysbase.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-sysbase"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-be-trdorder"
+    path: "/home/mule/logs/hualala-be-trdorder.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-trdorder"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-be-user"
+    path: "/home/mule/logs/hualala-be-user.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-user"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-trd-interface"
+    path: "/home/mule/logs/hualala-trd-interface.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-trd-interface"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        method: "statistic"
+  - name: "hualala-trd-wechat"
+    path: "/home/mule/logs/hualala-trd-wechat.log"
+    delimiter: "\n"
+    tsEnabled: true
+    tsPattern: "([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+    items:
+      - metric: "response.data.length"
+        tags: "module=mule,app=be-trd-wechat"
+        counterType: "GAUGE"
+        step: 60
+        pattern: 'response data lenth \[([0-9]*)\].*retmsg'
         method: "statistic"
