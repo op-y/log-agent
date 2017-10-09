@@ -1,9 +1,10 @@
 /*
-* agent.go - the entry of program
+* main.go - the entry of program
 *
 * history
 * --------------------
 * 2017/8/18, by Ye Zhiqin, create
+* 2017/9/30, by Ye Zhiqin, modify
 *
 * DESCRIPTION
 * This file contains the main scheduler of the program
@@ -23,6 +24,8 @@ import (
 )
 
 const (
+	CONFIG_CHECK_INTERVAL = 5
+
 	MAX_UNCHANGED_TIME = 5
 )
 
@@ -55,16 +58,21 @@ func main() {
 	}
 
 	// check configuration md5
-	configMD5Sum = CheckConfigMD5()
+	md5sum, err := CheckConfigMD5()
+	if err != nil {
+		log.Printf("configuration checking FAIL")
+		os.Exit(-1)
+	}
+	configMD5Sum = md5sum
 
-	DispatchAgent()
+	StartAgent()
 
 MAIN:
 	for {
 		select {
 		case <-sysCh:
 			log.Printf("system signal: %v", sysCh)
-			RecallAgent()
+			StopAgent()
 			break MAIN
 		case <-ticker.C:
 			RecheckConfig()
@@ -76,7 +84,7 @@ MAIN:
 }
 
 /*
-* DispatchAgent - generate the file agent by the configuration
+* StartAgent - generate the file agent by the configuration
 *
 * PARAMS:
 *   No paramter
@@ -84,7 +92,7 @@ MAIN:
 * RETURNS:
 *   No return value
  */
-func DispatchAgent() {
+func StartAgent() {
 	for _, one := range config.Logs {
 
 		var tasks []*AgentTask
@@ -119,6 +127,7 @@ func DispatchAgent() {
 		agent.Delimiter = one.Delimiter
 		agent.TsEnabled = one.TsEnabled
 		agent.TsPattern = one.TsPattern
+		agent.InotifyEnabled = one.InotifyEnabled
 		agent.Tasks = tasks
 
 		name := one.Name
@@ -135,12 +144,16 @@ func DispatchAgent() {
 	for _, record := range records {
 		wg.Add(1)
 		log.Printf("wg: %v", wg)
-		go TailForever(record.Agent, record.Finish)
+		if record.Agent.InotifyEnabled {
+			go TailWithInotify(record.Agent, record.Finish)
+		} else {
+			go TailWithCheck(record.Agent, record.Finish)
+		}
 	}
 }
 
 /*
-* RecallAgent - recall the file agent when program exit or configuration changed
+* StopAgent - recall the file agent when program exit or configuration changed
 *
 * PARAMS:
 *   No paramter
@@ -148,7 +161,7 @@ func DispatchAgent() {
 * RETURNS:
 *   No return value
  */
-func RecallAgent() {
+func StopAgent() {
 	for _, record := range records {
 		record.Finish <- true
 		close(record.Finish)
@@ -166,7 +179,12 @@ func RecallAgent() {
 *   No return value
  */
 func RecheckConfig() {
-	newMD5Sum := CheckConfigMD5()
+	newMD5Sum, err := CheckConfigMD5()
+	if err != nil {
+		log.Printf("configuration checking FAIL")
+		return
+	}
+
 	if !bytes.Equal(configMD5Sum, newMD5Sum) {
 		log.Printf("old %x ----- new %x", configMD5Sum, newMD5Sum)
 		cfg := LoadConfig()
@@ -177,7 +195,7 @@ func RecheckConfig() {
 		config = cfg
 		configMD5Sum = newMD5Sum
 
-		RecallAgent()
-		DispatchAgent()
+		StopAgent()
+		StartAgent()
 	}
 }

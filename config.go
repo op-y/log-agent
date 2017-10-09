@@ -4,6 +4,7 @@
 * history
 * --------------------
 * 2017/8/18, by Ye Zhiqin, create
+* 2017/9/30, by Ye Zhiqin, modify
 *
 * DESCRIPTION
 * This file contains the definition of configuration data structure
@@ -23,10 +24,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const (
-	CONFIG_CHECK_INTERVAL = 5
-)
-
 type Config struct {
 	Falcon FalconConfig `yaml:"falcon"`
 	Logs   []LogConfig  `yaml:"logs"`
@@ -38,12 +35,13 @@ type FalconConfig struct {
 }
 
 type LogConfig struct {
-	Name      string       `yaml:"name"`
-	Path      string       `yaml:"path"`
-	Delimiter string       `yaml:"delimiter"`
-	TsEnabled bool         `yaml:"tsEnabled"`
-	TsPattern string       `yaml:"tsPattern"`
-	Items     []ItemConfig `yaml:"items"`
+	Name           string       `yaml:"name"`
+	Path           string       `yaml:"path"`
+	Delimiter      string       `yaml:"delimiter"`
+	TsEnabled      bool         `yaml:"tsEnabled"`
+	TsPattern      string       `yaml:"tsPattern"`
+	InotifyEnabled bool         `yaml:"inotifyEnabled"`
+	Items          []ItemConfig `yaml:"items"`
 }
 
 type ItemConfig struct {
@@ -65,20 +63,23 @@ var configMD5Sum []byte
 *   No paramter
 *
 * RETURNS:
-*   []byte, the md5sum of configuration file
+*   []byte, nil, if succeed
+*   nil, error, if fail
  */
-func CheckConfigMD5() []byte {
+func CheckConfigMD5() ([]byte, error) {
 	f, err := os.Open("config.yaml")
 	if err != nil {
 		log.Printf("configuration file opening FAIL: %v", err)
+		return nil, err
 	}
 	defer f.Close()
 
 	h := md5.New()
 	if _, err := io.Copy(h, f); err != nil {
 		log.Printf("md5 copying FAIL: %v", err)
+		return nil, err
 	}
-	return h.Sum(nil)
+	return h.Sum(nil), nil
 }
 
 /*

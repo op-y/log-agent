@@ -2,11 +2,11 @@
 log-agent 跟踪普通可读文件，正则匹配给定的pattern，将匹配结果当做监控数据推送到open falcon系统中
 
 ## 文件说明:
-* agent.go    -- agent控制和调度
 * config.go   -- 配置读取/加载/更新
 * config.yaml -- 配置文件
 * control     -- 控制脚本
 * falcon.go   -- open falcon
+* main.go     -- 程序入口，调度和控制逻辑
 * re.go       -- 匹配pattern
 * tail.go     -- 文件跟踪
 

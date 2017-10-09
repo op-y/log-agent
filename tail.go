@@ -4,6 +4,7 @@
 * history
 * --------------------
 * 2017/8/18, by Ye Zhiqin, create
+* 2017/9/30, by Ye Zhiqin, modify
 *
 * DESCRIPTION
 * This file contains the definition of file agent
@@ -14,22 +15,27 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"path"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 type FileAgent struct {
-	Filename     string
-	File         *os.File
-	FileInfo     os.FileInfo
-	LastOffset   int64
-	UnchangeTime int
-	Delimiter    string
-	TsEnabled    bool
-	TsPattern    string
-	Tasks        []*AgentTask
+	Filename       string
+	File           *os.File
+	FileInfo       os.FileInfo
+	LastOffset     int64
+	UnchangeTime   int
+	Delimiter      string
+	TsEnabled      bool
+	TsPattern      string
+	InotifyEnabled bool
+	Tasks          []*AgentTask
 }
 
 type AgentTask struct {
@@ -37,11 +43,11 @@ type AgentTask struct {
 	Tags        string
 	CounterType string
 	Step        int64
+	Pattern     string
+	Method      string
 	TsStart     int64
 	TsEnd       int64
 	TsUpdate    int64
-	Pattern     string
-	Method      string
 	ValueCnt    int64
 	ValueMax    float64
 	ValueMin    float64
@@ -49,7 +55,7 @@ type AgentTask struct {
 }
 
 /*
-* Update - push and update data after a period passed
+* Report - push and update data after a period passed
 *
 * RECEIVER: *FileAgent
 *
@@ -60,7 +66,7 @@ type AgentTask struct {
 * RETURNS:
 *   No paramter
  */
-func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
+func (task *AgentTask) Report(ts time.Time, timeup bool) {
 	var data []*FalconData
 
 	if task.Method == "count" {
@@ -111,26 +117,43 @@ func (task *AgentTask) Update(ts time.Time, tsEnabled bool) {
 	task.ValueSum = 0
 
 	//update timestamp
-	if tsEnabled {
-		minute := ts.Format("200601021504")
-		start, err := time.ParseInLocation("20060102150405", minute+"00", ts.Location())
-		if err != nil {
-			log.Printf("timestamp setting FAIL: %v", err)
-		}
-		tsStart := start.Unix()
-
-		end, err := time.ParseInLocation("20060102150405", minute+"59", ts.Location())
-		if err != nil {
-			log.Printf("timestamp setting FAIL: %v", err)
-		}
-		tsEnd := end.Unix()
-		task.TsStart = tsStart
-		task.TsEnd = tsEnd
-		task.TsUpdate = ts.Unix()
+	if timeup {
+		task.TsStart += task.Step
+		task.TsEnd += task.Step
+		task.TsUpdate = task.TsEnd - 1
 	} else {
 		task.TsStart += task.Step
 		task.TsEnd += task.Step
 		task.TsUpdate = ts.Unix()
+	}
+}
+
+/*
+* Timeup - the process after a period passed
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   No paramter
+ */
+func (fa *FileAgent) Timeup() {
+	ts := time.Now()
+
+	for _, task := range fa.Tasks {
+		if fa.TsEnabled {
+			if ts.Unix()-task.TsUpdate >= task.Step {
+				//push data and update task when the time between now and last update time is longer than a step
+				task.Report(ts, true)
+			}
+		} else {
+			if ts.Unix()-task.TsStart >= task.Step {
+				//push data and update task when the time between now and start time is longer than a step
+				task.Report(ts, true)
+			}
+		}
 	}
 }
 
@@ -156,7 +179,7 @@ func (fa *FileAgent) MatchLine(line []byte) {
 			//push data and update task when the timestamp is not in current period
 			if ts.Unix() > task.TsEnd || ts.Unix() < task.TsStart {
 				log.Printf("timestamp updated!")
-				task.Update(ts, true)
+				task.Report(ts, false)
 			}
 
 			if task.Method == "count" {
@@ -214,7 +237,7 @@ func (fa *FileAgent) MatchLine(line []byte) {
 }
 
 /*
-* Timeup - the process after a period passed
+* ReadRemainder - reading new bytes of log file
 *
 * RECEIVER: *FileAgent
 *
@@ -222,23 +245,544 @@ func (fa *FileAgent) MatchLine(line []byte) {
 *   No paramter
 *
 * RETURNS:
-*   No paramter
+*   nil: succeed
+*   error: fail
  */
-func (fa *FileAgent) Timeup() {
-	ts := time.Now()
+func (fa *FileAgent) ReadRemainder() error {
+	tailable := fa.FileInfo.Mode().IsRegular()
+	size := fa.FileInfo.Size()
+
+	// LastOffset less then new size. Maybe the file has been truncated.
+	if tailable && fa.LastOffset > size {
+		// seek the cursor to the header of new file
+		offset, err := fa.File.Seek(0, os.SEEK_SET)
+		if err != nil {
+			log.Printf("file %s seek FAIL: %v", fa.Filename, err)
+			return err
+		}
+		if offset != 0 {
+			log.Printf("offset is not equal 0")
+		}
+		fa.LastOffset = 0
+
+		return nil
+	}
+
+	bufsize := size - fa.LastOffset
+	if bufsize == 0 {
+		return nil
+	}
+	data := make([]byte, bufsize)
+	readsize, err := fa.File.Read(data)
+
+	if err != nil && err != io.EOF {
+		log.Printf("file %s read FAIL: %v", err)
+		return err
+	}
+	if readsize == 0 {
+		log.Printf("file %s read 0 data", fa.Filename)
+		return nil
+	}
+
+	if fa.Delimiter == "" {
+		fa.Delimiter = "\n"
+	}
+	sep := []byte(fa.Delimiter)
+	lines := bytes.SplitAfter(data, sep)
+	length := len(lines)
+
+	fmt.Println("==========")
+	for idx, line := range lines {
+		// just process entire line with the delimiter
+		if idx == length-1 {
+			backsize := len(line)
+			movesize := readsize - backsize
+
+			_, err := fa.File.Seek(-int64(backsize), os.SEEK_CUR)
+			if err != nil {
+				log.Printf("seek file %s FAIL: %v", fa.Filename, err)
+				return err
+			}
+			fa.LastOffset += int64(movesize)
+
+			break
+		}
+
+		fmt.Printf("%s\n", string(line))
+		fa.MatchLine(line)
+	}
+	fmt.Println("==========")
+	return nil
+}
+
+/*
+* TailWithCheck - tail log file in a loop
+*
+* PARAMS:
+*   - fa: file agent
+*   - finish: a channel to receiver stop signal
+*
+* RETURNS:
+*   No return value
+ */
+func TailWithCheck(fa *FileAgent, finish <-chan bool) {
+	log.Printf("agent for %s is launching...", fa.Filename)
+
+	// create one second ticker
+	ticker := time.NewTicker(time.Second * 1)
+	defer ticker.Stop()
+
+TAIL:
+	for {
+		select {
+		case <-finish:
+			if fa.File != nil {
+				if err := fa.File.Close(); err != nil {
+					log.Printf("file closing FAIL: %v", err)
+				}
+			}
+			break TAIL
+		case <-ticker.C:
+			fa.Timeup()
+		default:
+			fa.TryReading()
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+
+	wg.Done()
+	log.Printf("wg: %v", wg)
+	log.Printf("agent for %s is exiting...", fa.Filename)
+}
+
+/*
+* TryReading - reading log file
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   No return value
+ */
+func (fa *FileAgent) TryReading() {
+	if fa.File == nil {
+		log.Printf("file %s is nil", fa.Filename)
+		if err := fa.FileRecheck(); err != nil {
+			log.Printf("file recheck FAIL: %v", err)
+		}
+		return
+	}
+
+	if !fa.IsChanged() {
+		if fa.UnchangeTime >= MAX_UNCHANGED_TIME {
+			fa.FileRecheck()
+		}
+		return
+	}
+
+	fa.ReadRemainder()
+}
+
+/*
+* TailWithInotify - trace log file
+*
+* PARAMS:
+*   - fa: file agent
+*   - finish: a channel to receiver stop signal
+*
+* RETURNS:
+*   No return value
+ */
+func TailWithInotify(fa *FileAgent, chanFinish <-chan bool) {
+	fmt.Printf("agent for %s is starting...\n", fa.Filename)
+
+	// create one second ticker
+	ticker := time.NewTicker(time.Second * 1)
+	defer ticker.Stop()
+
+	// craete file watcher
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Printf("watcher creating FAIL: %s", err.Error())
+		wg.Done()
+		log.Printf("agent for %s is exiting...", fa.Filename)
+		return
+	}
+	defer watcher.Close()
+
+	// add parent directory to watcher
+	dir := path.Dir(fa.Filename)
+	if err := watcher.Add(dir); err != nil {
+		log.Printf("add %s to watcher FAIL: %s", dir, err.Error())
+		wg.Done()
+		log.Printf("agent for %s is exiting...", fa.Filename)
+		return
+	}
+
+	// open file and initialize file agent
+	if err := fa.FileOpen(); err != nil {
+		log.Printf("file $s open FAIL when agent initializing: %s", fa.Filename, err.Error())
+	}
+
+	// trace file in this loop
+TRACE:
+	for {
+		select {
+		case <-chanFinish:
+			if err := watcher.Remove(dir); err != nil {
+				log.Printf("watcher file removing FAIL: %s", err.Error())
+			}
+			if fa.File != nil {
+				if err := fa.File.Close(); err != nil {
+					log.Printf("file closing FAIL: %s", err.Error())
+				}
+			}
+			break TRACE
+		case event := <-watcher.Events:
+			if event.Name == fa.Filename {
+				// WRITE event
+				if 2 == event.Op {
+					if err := fa.FileInfoUpdate(); err != nil {
+						log.Printf("file %s stat FAIL", fa.Filename)
+						if fa.UnchangeTime > MAX_UNCHANGED_TIME {
+							fa.FileReopen()
+						}
+						continue
+					}
+
+					if err := fa.ReadRemainder(); err != nil {
+						log.Printf("file %s reading FAIL, recheck it", fa.Filename)
+						fa.FileReopen()
+					}
+				}
+				// CREATE event
+				if 1 == event.Op {
+					fmt.Printf("fa %s, watch %s receive event CREATE\n", fa.Filename, event.Name)
+					fa.FileReopen()
+				}
+				// REMOVE/RENAME event
+				if 4 == event.Op || 8 == event.Op {
+					fmt.Printf("fa %s, watch %s receive event REMOVE|RENAME\n", fa.Filename, event.Name)
+					fa.FileClose()
+				}
+				// CHMOD event
+				if 16 == event.Op {
+					fmt.Printf("fa %s, watch %s receive event CHMOD\n", fa.Filename, event.Name)
+				}
+			}
+		case err := <-watcher.Errors:
+			log.Printf("%s receive error %s", fa.Filename, err.Error())
+		case <-ticker.C:
+			fa.Timeup()
+		default:
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+
+	wg.Done()
+
+	fmt.Printf("agent for %s is exiting...\n", fa.Filename)
+}
+
+/*
+* FileOpen - open file while file agent initializing
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   nil, if succeed
+*   error, if fail
+ */
+func (fa *FileAgent) FileOpen() error {
+	// close old file
+	if fa.File != nil {
+		if err := fa.File.Close(); err != nil {
+			log.Printf("file closing FAIL: %s", err.Error())
+		}
+	}
+
+	fa.File = nil
+	fa.FileInfo = nil
+
+	// open new file
+	filename := fa.Filename
+
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Printf("file %s open FAIL: %s", fa.Filename, err.Error())
+		return err
+	}
+
+	fileinfo, err := file.Stat()
+	if err != nil {
+		log.Printf("file %s stat FAIL: %s", fa.Filename, err.Error())
+		return err
+	}
+
+	fmt.Printf("file %s is open\n", fa.Filename)
+
+	fa.File = file
+	fa.FileInfo = fileinfo
+	fa.LastOffset = 0
+
+	// seek the cursor to the end of new file
+	_, err = fa.File.Seek(fa.FileInfo.Size(), os.SEEK_SET)
+	if err != nil {
+		log.Printf("seek file %s FAIL: %s", fa.Filename, err.Error())
+	}
+	fa.LastOffset += fa.FileInfo.Size()
+
+	// set timestamp
+	now := time.Now()
+	minute := now.Format("200601021504")
+
+	tsNow := now.Unix()
+	tsStart := tsNow
+
+	start, err := time.ParseInLocation("20060102150405", minute+"00", now.Location())
+	if err != nil {
+		log.Printf("timestamp setting FAIL: %s", err.Error())
+	} else {
+		tsStart = start.Unix()
+	}
 
 	for _, task := range fa.Tasks {
-		if fa.TsEnabled {
-			if ts.Unix()-task.TsUpdate >= task.Step {
-				//push data and update task when the time between now and last update time is longer than a step
-				task.Update(ts, true)
-			}
-		} else {
-			if ts.Unix()-task.TsStart >= task.Step {
-				//push data and update task when the time between now and start time is longer than a step
-				task.Update(ts, false)
+		task.TsStart = tsStart
+		task.TsEnd = tsStart + task.Step - 1
+		task.TsUpdate = tsNow
+		task.ValueCnt = 0
+		task.ValueMax = 0
+		task.ValueMin = 1 << 32
+		task.ValueSum = 0
+	}
+
+	return nil
+}
+
+/*
+* FileInfoUpdate - stat file when WRITE
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   nil, if succeed
+*   error, if fail
+ */
+func (fa *FileAgent) FileInfoUpdate() error {
+	fileinfo, err := fa.File.Stat()
+	if err != nil {
+		log.Printf("file %s stat FAIL: %s", fa.Filename, err.Error())
+		fa.UnchangeTime += 1
+		return err
+	}
+
+	fa.FileInfo = fileinfo
+	fa.UnchangeTime = 0
+	return nil
+}
+
+/*
+* FileClose - close file when REMOVE/RENAME
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   nil, if succeed
+*   error, if fail
+ */
+func (fa *FileAgent) FileClose() error {
+	// close old file
+	if fa.File != nil {
+		if err := fa.File.Close(); err != nil {
+			log.Printf("file closing FAIL: %s", err.Error())
+			return err
+		}
+	}
+
+	fa.File = nil
+	fa.FileInfo = nil
+	fa.LastOffset = 0
+	fa.UnchangeTime = 0
+
+	for _, task := range fa.Tasks {
+		task.TsStart = 0
+		task.TsEnd = 0
+		task.TsUpdate = 0
+		task.ValueCnt = 0
+		task.ValueMax = 0
+		task.ValueMin = 1 << 32
+		task.ValueSum = 0
+	}
+
+	return nil
+}
+
+/*
+* FileReopen - reopen file when CREATE/ERROR
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   nil: succeed
+*   error: fail
+ */
+func (fa *FileAgent) FileReopen() error {
+	// close old file
+	if fa.File != nil {
+		if err := fa.File.Close(); err != nil {
+			log.Printf("file closing FAIL: %s", err.Error())
+		}
+	}
+
+	fa.File = nil
+	fa.FileInfo = nil
+
+	// open new file
+	filename := fa.Filename
+
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Printf("file %s opening FAIL: %s", fa.Filename, err.Error())
+		return err
+	}
+
+	fileinfo, err := file.Stat()
+	if err != nil {
+		log.Printf("file %s stat FAIL: %s", fa.Filename, err.Error())
+		return err
+	}
+
+	log.Printf("file %s recheck ok, it is a new file", fa.Filename)
+
+	fa.File = file
+	fa.FileInfo = fileinfo
+	fa.LastOffset = 0
+
+	// seek the cursor to the start of new file
+	_, err = fa.File.Seek(0, os.SEEK_SET)
+	if err != nil {
+		log.Printf("seek file %s FAIL: %s", fa.Filename, err.Error())
+	}
+
+	// set timestamp
+	now := time.Now()
+	minute := now.Format("200601021504")
+
+	tsNow := now.Unix()
+	tsStart := tsNow
+
+	start, err := time.ParseInLocation("20060102150405", minute+"00", now.Location())
+	if err != nil {
+		log.Printf("timestamp setting FAIL: %s", err.Error())
+	} else {
+		tsStart = start.Unix()
+	}
+
+	for _, task := range fa.Tasks {
+		task.TsStart = tsStart
+		task.TsEnd = tsStart + task.Step - 1
+		task.TsUpdate = tsNow
+		task.ValueCnt = 0
+		task.ValueMax = 0
+		task.ValueMin = 1 << 32
+		task.ValueSum = 0
+	}
+
+	return nil
+}
+
+/*
+* FileRecheck - recheck the file for file agent
+*
+* RECEIVER: *FileAgent
+*
+* PARAMS:
+*   No paramter
+*
+* RETURNS:
+*   nil, if succeed
+*   error, if fail
+ */
+func (fa *FileAgent) FileRecheck() error {
+	filename := fa.Filename
+
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Printf("file %s opening FAIL: %v", fa.Filename, err)
+		fa.UnchangeTime = 0
+		return err
+	}
+
+	fileinfo, err := file.Stat()
+	if err != nil {
+		log.Printf("file %s stat FAIL: %v", fa.Filename, err)
+		fa.UnchangeTime = 0
+		return err
+	}
+
+	isSameFile := os.SameFile(fa.FileInfo, fileinfo)
+	if !isSameFile {
+		log.Printf("file %s recheck, it is a new file", fa.Filename)
+		if fa.File != nil {
+			if err := fa.File.Close(); err != nil {
+				log.Printf("old file closing FAIL: %v", err)
 			}
 		}
+
+		fa.File = file
+		fa.FileInfo = fileinfo
+		fa.LastOffset = 0
+		fa.UnchangeTime = 0
+
+		// seek the cursor to the end of new file
+		offset, err := fa.File.Seek(fa.FileInfo.Size(), os.SEEK_SET)
+		if err != nil {
+			log.Printf("seek file %s FAIL: %v", fa.Filename, err)
+		}
+		log.Printf("seek file %s to %d", fa.Filename, offset)
+		fa.LastOffset += fa.FileInfo.Size()
+
+		now := time.Now()
+		minute := now.Format("200601021504")
+
+		tsNow := now.Unix()
+		tsStart := tsNow
+
+		start, err := time.ParseInLocation("20060102150405", minute+"00", now.Location())
+		if err != nil {
+			log.Printf("timestamp setting FAIL: %v", err)
+		} else {
+			tsStart = start.Unix()
+		}
+
+		for _, task := range fa.Tasks {
+			task.TsStart = tsStart
+			task.TsEnd = tsStart + task.Step - 1
+			task.TsUpdate = tsNow
+			task.ValueCnt = 0
+			task.ValueMax = 0
+			task.ValueMin = 1 << 32
+			task.ValueSum = 0
+		}
+
+		return nil
+	} else {
+		fa.UnchangeTime = 0
+		return nil
 	}
 }
 
@@ -283,232 +827,4 @@ func (fa *FileAgent) IsChanged() bool {
 	fa.UnchangeTime = 0
 	fa.FileInfo = fileinfo
 	return true
-}
-
-/*
-* Recheck - recheck the file for file agent
-*
-* RECEIVER: *FileAgent
-*
-* PARAMS:
-*   No paramter
-*
-* RETURNS:
-*   No return value
- */
-func (fa *FileAgent) Recheck() error {
-	filename := fa.Filename
-
-	file, err := os.Open(filename)
-	if err != nil {
-		log.Printf("file %s opening FAIL: %v", fa.Filename, err)
-		fa.UnchangeTime = 0
-		return err
-	}
-
-	fileinfo, err := file.Stat()
-	if err != nil {
-		log.Printf("file %s stat FAIL: %v", fa.Filename, err)
-		fa.UnchangeTime = 0
-		return err
-	}
-
-	isNewFile := os.SameFile(fa.FileInfo, fileinfo)
-	if !isNewFile {
-		log.Printf("file %s recheck, it is a new file", fa.Filename)
-		if fa.File != nil {
-			if err := fa.File.Close(); err != nil {
-				log.Printf("old file closing FAIL: %v", err)
-			}
-		}
-
-		fa.File = file
-		fa.FileInfo = fileinfo
-		fa.LastOffset = 0
-		fa.UnchangeTime = 0
-
-		// seek the cursor to the end of new file
-		offset, err := fa.File.Seek(fa.FileInfo.Size(), os.SEEK_SET)
-		if err != nil {
-			log.Printf("seek file %s FAIL: %v", fa.Filename, err)
-		}
-		log.Printf("seek file %s to %d", fa.Filename, offset)
-		fa.LastOffset += fa.FileInfo.Size()
-
-		now := time.Now()
-		minute := now.Format("200601021504")
-
-		tsNow := now.Unix()
-		tsStart := tsNow
-		tsEnd := tsNow
-
-		start, err := time.ParseInLocation("20060102150405", minute+"00", now.Location())
-		if err != nil {
-			log.Printf("timestamp setting FAIL: %v", err)
-		} else {
-			tsStart = start.Unix()
-		}
-
-		end, err := time.ParseInLocation("20060102150405", minute+"59", now.Location())
-		if err != nil {
-			log.Printf("timestamp setting FAIL: %v", err)
-		} else {
-			tsEnd = end.Unix()
-		}
-
-		for _, task := range fa.Tasks {
-			task.TsStart = tsStart
-			task.TsEnd = tsEnd
-			task.TsUpdate = tsNow
-			task.ValueCnt = 0
-			task.ValueMax = 0
-			task.ValueMin = 1 << 32
-			task.ValueSum = 0
-		}
-
-		return nil
-	} else {
-		fa.UnchangeTime = 0
-		return nil
-	}
-}
-
-/*
-* ReadRemainder - reading new bytes of log file
-*
-* RECEIVER: *FileAgent
-*
-* PARAMS:
-*   No paramter
-*
-* RETURNS:
-*   No return value
- */
-func (fa *FileAgent) ReadRemainder() {
-	tailable := fa.FileInfo.Mode().IsRegular()
-	size := fa.FileInfo.Size()
-
-	// LastOffset less then new size. Maybe the file has been truncated.
-	if tailable && fa.LastOffset > size {
-		// seek the cursor to the header of new file
-		offset, err := fa.File.Seek(0, os.SEEK_SET)
-		if err != nil {
-			log.Printf("file %s seek FAIL: %v", fa.Filename, err)
-		}
-		if offset != 0 {
-			log.Printf("offset is not equal 0")
-		}
-		fa.LastOffset = 0
-
-		return
-	}
-
-	bufsize := size - fa.LastOffset
-	if bufsize == 0 {
-		return
-	}
-	data := make([]byte, bufsize)
-	readsize, err := fa.File.Read(data)
-
-	if err != nil && err != io.EOF {
-		log.Printf("file %s read FAIL: %v", err)
-		return
-	}
-	if readsize == 0 {
-		log.Printf("file %s read 0 data", fa.Filename)
-		return
-	}
-
-	if fa.Delimiter == "" {
-		fa.Delimiter = "\n"
-	}
-	sep := []byte(fa.Delimiter)
-	lines := bytes.SplitAfter(data, sep)
-	length := len(lines)
-
-	for idx, line := range lines {
-		// just process entire line with the delimiter
-		if idx == length-1 {
-			backsize := len(line)
-			movesize := readsize - backsize
-
-			_, err := fa.File.Seek(-int64(backsize), os.SEEK_CUR)
-			if err != nil {
-				log.Printf("seek file %s FAIL: %v", fa.Filename, err)
-			}
-			fa.LastOffset += int64(movesize)
-
-			break
-		}
-
-		fa.MatchLine(line)
-	}
-	return
-}
-
-/*
-* TryReading - reading log file
-*
-* PARAMS:
-*   - fa: file agent
-*
-* RETURNS:
-*   No return value
- */
-func TryReading(fa *FileAgent) {
-	if fa.File == nil {
-		log.Printf("file %s is nil", fa.Filename)
-		if err := fa.Recheck(); err != nil {
-			log.Printf("file recheck FAIL: %v", err)
-		}
-		return
-	}
-
-	if !fa.IsChanged() {
-		if fa.UnchangeTime >= MAX_UNCHANGED_TIME {
-			fa.Recheck()
-		}
-		return
-	}
-
-	fa.ReadRemainder()
-}
-
-/*
-* TailForever - tail log file in a loop
-*
-* PARAMS:
-*   - fa: file agent
-*   - finish: a channel to receiver stop signal
-*
-* RETURNS:
-*   No return value
- */
-func TailForever(fa *FileAgent, finish <-chan bool) {
-	log.Printf("agent for %s is launching...", fa.Filename)
-
-	ticker := time.NewTicker(time.Second * 1)
-	defer ticker.Stop()
-
-TAIL:
-	for {
-		select {
-		case <-finish:
-			if fa.File != nil {
-				if err := fa.File.Close(); err != nil {
-					log.Printf("file closing FAIL: %v", err)
-				}
-			}
-			break TAIL
-		case <-ticker.C:
-			fa.Timeup()
-		default:
-			TryReading(fa)
-			time.Sleep(time.Millisecond * 100)
-		}
-	}
-
-	wg.Done()
-	log.Printf("wg: %v", wg)
-	log.Printf("agent for %s is exiting...", fa.Filename)
 }
