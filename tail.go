@@ -291,7 +291,7 @@ func (fa *FileAgent) ReadRemainder() error {
 	lines := bytes.SplitAfter(data, sep)
 	length := len(lines)
 
-	fmt.Println("==========")
+	fmt.Println("--------->")
 	for idx, line := range lines {
 		// just process entire line with the delimiter
 		if idx == length-1 {
@@ -308,10 +308,10 @@ func (fa *FileAgent) ReadRemainder() error {
 			break
 		}
 
-		fmt.Printf("%s\n", string(line))
+		fmt.Printf("%s", string(line))
 		fa.MatchLine(line)
 	}
-	fmt.Println("==========")
+	fmt.Println("<---------")
 	return nil
 }
 
