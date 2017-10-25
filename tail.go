@@ -185,7 +185,7 @@ func (fa *FileAgent) MatchLine(line []byte) {
 			if task.Method == "count" {
 				isKeywordMatched, err := MatchKeyword(line, task.Pattern)
 				if err != nil || !isKeywordMatched {
-					return
+					continue
 				}
 				task.ValueCnt += 1
 				task.TsUpdate = ts.Unix()
@@ -194,7 +194,7 @@ func (fa *FileAgent) MatchLine(line []byte) {
 			if task.Method == "statistic" {
 				isCostMatched, cost, err := MatchCost(line, task.Pattern)
 				if err != nil || !isCostMatched {
-					return
+					continue
 				}
 
 				task.ValueCnt += 1
@@ -213,7 +213,7 @@ func (fa *FileAgent) MatchLine(line []byte) {
 			if task.Method == "count" {
 				isKeywordMatched, err := MatchKeyword(line, task.Pattern)
 				if err != nil || !isKeywordMatched {
-					return
+					continue
 				}
 				task.ValueCnt += 1
 			}
@@ -221,7 +221,7 @@ func (fa *FileAgent) MatchLine(line []byte) {
 			if task.Method == "statistic" {
 				isCostMatched, cost, err := MatchCost(line, task.Pattern)
 				if err != nil || !isCostMatched {
-					return
+					continue
 				}
 				task.ValueCnt += 1
 				if task.ValueMax < cost {
@@ -291,7 +291,6 @@ func (fa *FileAgent) ReadRemainder() error {
 	lines := bytes.SplitAfter(data, sep)
 	length := len(lines)
 
-	fmt.Println("--------->")
 	for idx, line := range lines {
 		// just process entire line with the delimiter
 		if idx == length-1 {
@@ -307,11 +306,8 @@ func (fa *FileAgent) ReadRemainder() error {
 
 			break
 		}
-
-		fmt.Printf("%s", string(line))
 		fa.MatchLine(line)
 	}
-	fmt.Println("<---------")
 	return nil
 }
 
