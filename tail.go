@@ -5,6 +5,7 @@
 * --------------------
 * 2017/8/18, by Ye Zhiqin, create
 * 2017/9/30, by Ye Zhiqin, modify
+* 2018/1/3, by Ye Zhiqin, modify
 *
 * DESCRIPTION
 * This file contains the definition of file agent
@@ -44,6 +45,8 @@ type AgentTask struct {
 	CounterType string
 	Step        int64
 	Pattern     string
+	Reversed    bool
+	Threshold   float64
 	Method      string
 	TsStart     int64
 	TsEnd       int64
@@ -71,6 +74,12 @@ func (task *AgentTask) Report(ts time.Time, timeup bool) {
 
 	if task.Method == "count" {
 		metricCnt := task.Metric + ".cnt"
+		point := NewFalconData(metricCnt, config.Falcon.Endpoint, task.ValueCnt, task.CounterType, task.Tags, task.TsEnd, task.Step)
+		data = append(data, point)
+	}
+
+	if task.Method == "Tcount" {
+		metricCnt := task.Metric + ".tcnt"
 		point := NewFalconData(metricCnt, config.Falcon.Endpoint, task.ValueCnt, task.CounterType, task.Tags, task.TsEnd, task.Step)
 		data = append(data, point)
 	}
@@ -183,7 +192,7 @@ func (fa *FileAgent) MatchLine(line []byte) {
 			}
 
 			if task.Method == "count" {
-				isKeywordMatched, err := MatchKeyword(line, task.Pattern)
+				isKeywordMatched, err := MatchKeyword(line, task.Pattern, task.Reversed)
 				if err != nil || !isKeywordMatched {
 					continue
 				}
@@ -191,12 +200,21 @@ func (fa *FileAgent) MatchLine(line []byte) {
 				task.TsUpdate = ts.Unix()
 			}
 
+			if task.Method == "Tcount" {
+				isCostMatched, cost, err := MatchCost(line, task.Pattern)
+				if err != nil || !isCostMatched {
+					continue
+				}
+				if cost > task.Threshold {
+					task.ValueCnt += 1
+				}
+			}
+
 			if task.Method == "statistic" {
 				isCostMatched, cost, err := MatchCost(line, task.Pattern)
 				if err != nil || !isCostMatched {
 					continue
 				}
-
 				task.ValueCnt += 1
 				if task.ValueMax < cost {
 					task.ValueMax = cost
@@ -211,11 +229,21 @@ func (fa *FileAgent) MatchLine(line []byte) {
 	} else {
 		for _, task := range fa.Tasks {
 			if task.Method == "count" {
-				isKeywordMatched, err := MatchKeyword(line, task.Pattern)
+				isKeywordMatched, err := MatchKeyword(line, task.Pattern, task.Reversed)
 				if err != nil || !isKeywordMatched {
 					continue
 				}
 				task.ValueCnt += 1
+			}
+
+			if task.Method == "Tcount" {
+				isCostMatched, cost, err := MatchCost(line, task.Pattern)
+				if err != nil || !isCostMatched {
+					continue
+				}
+				if cost > task.Threshold {
+					task.ValueCnt += 1
+				}
 			}
 
 			if task.Method == "statistic" {

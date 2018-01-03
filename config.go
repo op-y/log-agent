@@ -5,6 +5,7 @@
 * --------------------
 * 2017/8/18, by Ye Zhiqin, create
 * 2017/9/30, by Ye Zhiqin, modify
+* 2018/1/3, by Ye Zhiqin, modify
 *
 * DESCRIPTION
 * This file contains the definition of configuration data structure
@@ -43,12 +44,14 @@ type LogConfig struct {
 }
 
 type ItemConfig struct {
-	Metric      string `yaml:"metric"`
-	Tags        string `yaml:"tags"`
-	CounterType string `yaml:"counterType"`
-	Step        int64  `yaml:"step"`
-	Pattern     string `yaml:"pattern"`
-	Method      string `yaml:"method"`
+	Metric      string  `yaml:"metric"`
+	Tags        string  `yaml:"tags"`
+	CounterType string  `yaml:"counterType"`
+	Step        int64   `yaml:"step"`
+	Pattern     string  `yaml:"pattern"`
+	Reversed    bool    `yaml:"reversed"`
+	Threshold   float64 `yaml:"threshold"`
+	Method      string  `yaml:"method"`
 }
 
 var config *Config
@@ -128,8 +131,8 @@ func LoadConfig() *Config {
 				log.Printf("Pattern of item should not EMPTY!")
 				return nil
 			}
-			if item.Method != "count" && item.Method != "statistic" {
-				log.Printf("Method of item should be 'count' or 'statistic'")
+			if item.Method != "count" && item.Method != "Tcount" && item.Method != "statistic" {
+				log.Printf("Method of item should be 'count'/'Tcount'/'statistic'")
 				return nil
 			}
 		}

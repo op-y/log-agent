@@ -5,6 +5,7 @@
 * --------------------
 * 2017/8/18, by Ye Zhiqin, create
 * 2017/9/30, by Ye Zhiqin, modify
+* 2018/1/3, by Ye Zhiqin, modify
 *
 * DESCRIPTION
 * This file contains the main scheduler of the program
@@ -104,6 +105,8 @@ func StartAgent() {
 			task.CounterType = item.CounterType
 			task.Step = item.Step
 			task.Pattern = item.Pattern
+			task.Reversed = item.Reversed
+			task.Threshold = item.Threshold
 			task.Method = item.Method
 			task.TsStart = 0
 			task.TsEnd = 0

@@ -14,4 +14,6 @@ logs:
         counterType: "GAUGE"
         step: 60
         pattern: 'response data lenth \[([0-9]*)\].*retmsg'
+        reversed: false
+        threshold: 0
         method: "statistic"

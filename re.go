@@ -4,6 +4,7 @@
 * history
 * --------------------
 * 2017/8/18, by Ye Zhiqin, create
+* 2018/1/3, by Ye Zhiqin, modify
 *
 * DESCRIPTION
 * This file contains three functions related to regular expression matching
@@ -68,13 +69,14 @@ func MatchTs(line []byte, pattern string) (bool, time.Time, error) {
 * PARAMS:
 *   - line: one line of log
 *   - pattern: regular expression
+*   - reversed: reverse the match result
 *
 * RETURNS:
 *   - true, nil: if match
 *   - false, nil: if not match
 *   - false, error: if fail
  */
-func MatchKeyword(line []byte, pattern string) (bool, error) {
+func MatchKeyword(line []byte, pattern string, reversed bool) (bool, error) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		log.Printf("re compiling FAIL: %v", err)
@@ -82,7 +84,11 @@ func MatchKeyword(line []byte, pattern string) (bool, error) {
 	}
 
 	isMatch := re.Match(line)
-	return isMatch, nil
+	if reversed {
+		return !isMatch, nil
+	} else {
+		return isMatch, nil
+	}
 }
 
 /*
